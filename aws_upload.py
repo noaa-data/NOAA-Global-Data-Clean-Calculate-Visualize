@@ -5,6 +5,7 @@ from pathlib import Path
 import sys
 import threading
 import datetime
+from multiprocessing import Pool
 
 import boto3
 from botocore.exceptions import ClientError
