@@ -118,34 +118,39 @@ def aws_load_files_year(s3_client: boto3.client, bucket: str, year: str, local_d
 ########################################################
 # AWS Upload Script
 ########################################################
+where_left_off = False
 
 # General variable initialization
-bucket_name = 'mssi-noaa-temperature-data'
+bucket_name = 'noaa-temperature-data'
 s3_client = boto3.client('s3', region_name='us-east-2')
 
 # LIST LOCAL YEAR FOLDERS
 working_dir = Path('C:/Users/Ben/Documents/working_datasets/noaa_global_temps')
 year_folders = os.listdir(str(working_dir))
 
-# LIST AWS BUCKET YEAR FOLDERS
-# get list of folders in bucket root
-folder_list = s3_list_folders(s3_client, bucket_name)
-# remove '/' from end of each folder name
-folder_list = [x.split('/')[0] for x in folder_list]
+if where_left_off:
+    # LIST AWS BUCKET YEAR FOLDERS
+    # get list of folders in bucket root
+    folder_list = s3_list_folders(s3_client, bucket_name)
+    # remove '/' from end of each folder name
+    folder_list = [x.split('/')[0] for x in folder_list]
 
-# FIND LOCAL FOLDERS NOT IN AWS BUCKET
-difference_set = sorted(set(year_folders) - set(folder_list))
+    # FIND LOCAL FOLDERS NOT IN AWS BUCKET
+    difference_set = sorted(set(year_folders) - set(folder_list))
 
-# add one folder below lowest to check for missing files before moving to new folders
-# - new folder = subtract 1 from first item in sorted list
-#   - first item converted to int for math operation
-#   - result converted back to string before appending to list
-difference_set.append(str(int(difference_set[0]) - 1))
-folder_difference_set = sorted(difference_set)
-print('\nFOLDERS TO CHECK AND UPLOAD')
-print(folder_difference_set)
+    # add one folder below lowest to check for missing files before moving to new folders
+    # - new folder = subtract 1 from first item in sorted list
+    #   - first item converted to int for math operation
+    #   - result converted back to string before appending to list
+    difference_set.append(str(int(difference_set[0]) - 1))
+    folder_difference_set = sorted(difference_set)
+    print('\nFOLDERS TO CHECK AND UPLOAD')
+    print(folder_difference_set)
+    folder_set = folder_difference_set
+else:
+    folder_set = sorted(set(year_folders))
 
-for year in tqdm(folder_difference_set):
+for year in tqdm(folder_set):
     # If not exists - creates year folder in aws
     s3_client.put_object(Bucket=bucket_name, Body='', Key=f'{year}/')
     file_diff_l = aws_local_year_find_difference(
