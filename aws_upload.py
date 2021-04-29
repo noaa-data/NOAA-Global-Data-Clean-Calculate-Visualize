@@ -2,8 +2,8 @@ from datetime import datetime
 import logging
 import os
 from pathlib import Path
-import sys
-import threading
+# import sys
+# import threading
 import datetime
 from multiprocessing import Pool
 
@@ -125,7 +125,8 @@ bucket_name = 'noaa-temperature-data'
 s3_client = boto3.client('s3', region_name='us-east-2')
 
 # LIST LOCAL YEAR FOLDERS
-working_dir = Path('C:/Users/Ben/Documents/working_datasets/noaa_global_temps')
+# working_dir = Path('C:/Users/Ben/Documents/data_downloads/noaa_global_temps')
+working_dir = Path('/mnt/c/Users/benha/data_downloads/noaa_global_temps')
 year_folders = os.listdir(str(working_dir))
 
 if where_left_off:

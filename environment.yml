@@ -1,4 +1,4 @@
-name: noaa-data-download
+name: aws-upload
 channels:
   - conda-forge
   - defaults
