@@ -13,7 +13,9 @@ from botocore.exceptions import ClientError
 from prefect.utilities.edges import unmapped
 from tqdm import tqdm
 
-
+###################################################
+# SUPPORT FUNCTIONS
+###################################################
 def aws_local_year_find_difference(s3_client: boto3, bucket: str, year: str, local_dir: str) -> list:
     """ Takes individual year and finds file difference between AWS and Local
     
@@ -25,7 +27,6 @@ def aws_local_year_find_difference(s3_client: boto3, bucket: str, year: str, loc
 
     Return (set): Diference between AWS and Local
     """
-    # s3_client = initialize_s3_client(region_name)
     # If not exists - creates year folder in aws
     s3_client.put_object(Bucket=bucket, Body='', Key=f'{year}/')
 
@@ -39,18 +40,19 @@ def aws_local_year_find_difference(s3_client: boto3, bucket: str, year: str, loc
         file_l = [x['Key'].split('/')[1] for x in list_all_keys]
         for f in file_l:
             aws_file_set.add(f)
-    # Subtrack 1, because the folder results from AWS include an empty string as one of the set items
-    print(f'CLOUD FILES: {len(aws_file_set) - 1}')
+
     # List local files for year
     local_file_set = set(os.listdir(str(local_dir / year)))
-    print(f'LOCAL FILES: {len(local_file_set)}')
+    
     # if local files exist for year, but no AWS files, simply pass on set of local files to upload
     if len(local_file_set) > 1 and len(aws_file_set) == 0:
-        print(f'NEW YEAR: {year}')
         return list(local_file_set)
+    
     # List local files not yet in aws bucket/year
     file_difference_set = local_file_set - aws_file_set
-    print(f'DIFFERENCE: {len(file_difference_set)}')
+
+    # Subtrack 1 from aws_file_ser, because the folder results from AWS include an empty string as one of the set items
+    print(f'{year} - DIFFERENCE: {len(file_difference_set)} (LOCAL: {len(local_file_set)} | CLOUD: {len(aws_file_set) - 1})')
     return list(file_difference_set)
 
 
@@ -70,7 +72,6 @@ def s3_upload_file(s3_client: boto3.client, file_name, bucket, object_name=None)
         object_name = file_name
 
     # Upload the file
-    # s3_client = boto3.client('s3')
     try:
         response = s3_client.upload_file(file_name, bucket, object_name)
     except ClientError as e:
@@ -113,6 +114,9 @@ def initialize_s3_client(region_name: str) -> boto3.client:
     return boto3.client('s3', region_name=region_name)
 
 
+###################################################
+# WORKFLOW STARTS HERE
+###################################################
 @task(log_stdout=True)
 def local_list_folders(working_dir: str) -> list:
     return os.listdir(str(working_dir))
@@ -161,16 +165,17 @@ def aws_local_folder_difference(aws_year_folders: list, local_year_folders: list
 
 @task(log_stdout=True)
 def load_year_files(year: str, region_name: str, bucket_name: str, working_dir:str):
-    # If not exists - creates year folder in aws
     s3_client = initialize_s3_client(region_name)
+
+    # If not exists - creates year folder in aws
     s3_client.put_object(Bucket=bucket_name, Body='', Key=f'{year}/')
+
     file_diff_l = aws_local_year_find_difference(
         s3_client=s3_client,
         bucket=bucket_name,
         year=year,
         local_dir=working_dir
     )
-    print(f'{year} - difference: {len(file_diff_l)}')
     if file_diff_l:
         success, failed = aws_load_files_year(
             s3_client=s3_client,
@@ -179,12 +184,11 @@ def load_year_files(year: str, region_name: str, bucket_name: str, working_dir:s
             local_dir=working_dir,
             files_l=file_diff_l
         )
-        print(year, 'success:', success, 'failed:', failed)
+        print(f'{year} success: {success}, failed: {failed}')
     return True
 
 
-#schedule = IntervalSchedule(interval=timedelta(minutes=2))
-executor=LocalDaskExecutor(scheduler="threads", num_workers=4)#, local_processes=True)
+executor=LocalDaskExecutor(scheduler="threads", num_workers=4)
 with Flow(name="NOAA-files-upload-to-AWS", executor=executor) as flow:
     working_dir = Parameter('WORKING_LOCAL_DIR', default=Path('/mnt/c/Users/benha/data_downloads/noaa_global_temps'))
     region_name = Parameter('REGION_NAME', default='us-east-2')
@@ -199,6 +203,5 @@ with Flow(name="NOAA-files-upload-to-AWS", executor=executor) as flow:
 
 
 if __name__ == '__main__':
-    #flow.register(project_name="Global Warming Data")
-    state = flow.run()#executor=LocalDaskExecutor(scheduler="processes", num_workers=6))#, local_processes=True)
+    state = flow.run()
     assert state.is_successful()
