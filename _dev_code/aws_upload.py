@@ -76,7 +76,7 @@ def aws_local_year_find_difference(s3_client: boto3.client, bucket: str, year: s
         file_l = [x['Key'].split('/')[1] for x in list_all_keys]
         for f in file_l:
             aws_file_set.add(f)
-
+    print(aws_file_set)
     # List local files for year
     local_file_set = set(os.listdir(str(local_dir / year)))
 
