@@ -1,42 +1,28 @@
 import coiled
 
-coiled.create_software_environment(
-    name="NOAA-temperature-data-cleaning",
-    conda="environment.yml",
-)
-
-from datetime import datetime
 import logging
-import os
 from pathlib import Path
-import io
-from pprint import pprint
+import os
 
 # PyPI
+import prefect
 from prefect import task, Flow, Parameter
-from prefect.schedules import IntervalSchedule
-from prefect.tasks.secrets import PrefectSecret
-from prefect.executors.dask import LocalDaskExecutor, DaskExecutor
+# from prefect.executors.dask import LocalDaskExecutor, DaskExecutor
+from prefect.engine.executors.dask import DaskExecutor, LocalDaskExecutor
 import boto3
 from botocore.exceptions import ClientError
 from prefect.utilities.edges import unmapped
 from tqdm import tqdm
-
-
-
-import csv, os
-from pathlib import Path
 import pandas as pd
 from tqdm import tqdm
 
-data_dir = Path('/mnt/c/Users/benha/data_downloads/noaa_global_temps')
-working_dir = data_dir / '1931'
+# data_dir = Path('/mnt/c/Users/benha/data_downloads/noaa_global_temps')
+# working_dir = data_dir / '1931'
 save_dir = Path('csvs')
 
-region_name = 'us-east-2'#Parameter('REGION_NAME', default='us-east-2')
-bucket_name = 'noaa-temperature-data'#Parameter('BUCKET_NAME', default='noaa-temperature-data')
+# region_name = 'us-east-2'
+# bucket_name = 'noaa-temperature-data'
 
-# files = os.listdir(str(working_dir))
 
 def initialize_s3_client(region_name: str) -> boto3.client:
     return boto3.client('s3', region_name=region_name)
@@ -57,13 +43,10 @@ def csv_clean_mismatched(filename, data, exclude_file):
     records = pd.read_csv(data, #working_dir / file_, 
                           dtype={'FRSHTT': str, 'TEMP': str, 'LATITUDE': str, 'LONGITUDE': str, 'ELEVATION': str, 'DATE': str}
     )
-#     with pd.option_context("display.min_rows", 50, "display.max_rows", 100, "display.max_columns", 40):
-#         display(records)
     records.columns = records.columns.str.strip()
     # remove site files with no spatial data
     if (
         not records['STATION'].eq(records['STATION'].iloc[0]).all()
-#         or not records['DATE'].eq(records['DATE'].iloc[0]).all()
         or not records['LATITUDE'].eq(records['LATITUDE'].iloc[0]).all()
         or not records['LONGITUDE'].eq(records['LONGITUDE'].iloc[0]).all()
         or not records['ELEVATION'].eq(records['ELEVATION'].iloc[0]).all()
@@ -72,8 +55,6 @@ def csv_clean_mismatched(filename, data, exclude_file):
             f.write(filename)
             f.write('\n')
         return filename
-
-# missing_data_l = []
 
 with open(save_dir / '_exclude.csv', 'w') as f:
     pass
@@ -117,13 +98,8 @@ def aws_year_files(bucket_name: str, region_name: str, year: str):
         file_l = [x['Key'].split('/')[1] for x in list_all_keys]
         for f in file_l:
             aws_file_set.add(f)
-    # print(aws_file_set)
     return list(sorted(aws_file_set))
 
-
-# for year in aws_folders:
-#     print(year)
-#     aws_files = aws_year_files(bucket_name, year)
     
 @task(log_stdout=True)
 def process_year_files(year, region_name, bucket_name):
@@ -139,30 +115,32 @@ def process_year_files(year, region_name, bucket_name):
             data=obj['Body'],
             exclude_file=save_dir / '_exclude.csv'
         )
-        # if missing:
-        #     missing_data_l.append(missing)
 
 
-# print(len(missing_data_l))
-# print(missing_data_l)
+if os.environ.get('EXECUTOR') == 'coiled':
+    print("Coiled")
+    coiled.create_software_environment(
+        name="NOAA-temperature-data-clean1",
+        pip="requirements.txt"
+    )
+    executor = DaskExecutor(
+        debug=True,
+        cluster_class=coiled.Cluster,
+        cluster_kwargs={
+            "shutdown_on_close": True,
+            "name": "NOAA-temperature-data-clean1",
+            "software": "darrida/noaa-temperature-data-clean1",
+            "worker_cpu": 4,
+            "n_workers": 4,
+            "worker_memory":"16 GiB",
+            "scheduler_memory": "16 GiB",
+        },
+    )
+else:
+    executor=LocalDaskExecutor(scheduler="threads", num_workers=14)
+        
 
-
-executor=LocalDaskExecutor(scheduler="threads", num_workers=14)
-
-# executor = DaskExecutor(
-#     debug=True,
-#     cluster_class=coiled.Cluster,
-#     cluster_kwargs={
-#         #"software": "jrbourbeau/prefect",
-#         "shutdown_on_close": False,
-#         "name": "NOAA-temperature-data-cleaning",
-#     },
-# )
-
-region_name = 'us-east-2'
-bucket_name = 'noaa-temperature-data'
-
-with Flow(name="NOAA-files-upload-to-AWS", executor=executor) as flow:
+with Flow(name="NOAA-files-upload-to-AWS") as flow:#, executor=executor) as flow:
     # working_dir = Parameter('WORKING_LOCAL_DIR', default=Path('/mnt/c/Users/benha/data_downloads/noaa_global_temps'))
     region_name = Parameter('REGION_NAME', default='us-east-2')
     bucket_name = Parameter('BUCKET_NAME', default='noaa-temperature-data')
@@ -171,5 +149,6 @@ with Flow(name="NOAA-files-upload-to-AWS", executor=executor) as flow:
 
 
 if __name__ == '__main__':
-    state = flow.run()
-    assert state.is_successful()
+    state = flow.run(executor= executor)
+    flow.visualize(flow_state=state)
+    # assert state.is_successful()
