@@ -30,7 +30,8 @@ def fetch_aws_folders(region_name, bucket_name):
     folder_list = yield_folders(response)
     # remove '/' from end of each folder name
     folder_list = [x.split('/')[0] for x in folder_list]
-    return folder_list#[:5]
+    return sorted(folder_list)[:5]
+    # return folder_list
 
 
 def csv_clean_spatial_check(filename, data):
@@ -60,10 +61,12 @@ def move_s3_file(
     # ensure data error folder exists
     s3_client.put_object(Bucket=bucket_name, Body='', Key=f'_data_errors/')
     # ensure year folder exists
-    s3_client.put_object(Bucket=bucket_name, Body='', Key=f'_data_errors/{filename.split("/")[0]}/')
+    # s3_client.put_object(Bucket=bucket_name, Body='', Key=f'_data_errors/{filename.split("/")[0]}/')
     # Copy object A as object B
+    year, file_ = filename.split('/')
+    number = file_.split('.')[0]
     copy_source = {'Bucket': bucket_name, 'Key': filename}
-    bucket.copy(copy_source, f'_data_errors/{filename}-{note}')
+    bucket.copy(copy_source, f'_data_errors/{year}-{number}-{note}.csv')
     # Delete object A
     s3_resource.Object(bucket_name, filename).delete()
 
@@ -133,8 +136,7 @@ def process_year_files(files_l: list, region_name: str, bucket_name: str):
                 # db_connection=db_connection
             )
             if missing_spatial:
-                move_s3_file(missing_spatial, bucket_name, s3_client)
-                note='missing_spatial'
+                move_s3_file(missing_spatial, bucket_name, s3_client, note='missing_spatial')
     print('TASK')
 
 
