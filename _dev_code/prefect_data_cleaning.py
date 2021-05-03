@@ -14,7 +14,6 @@ from botocore.exceptions import ClientError
 from prefect.utilities.edges import unmapped
 from tqdm import tqdm
 import pandas as pd
-from tqdm import tqdm
 
 # data_dir = Path('/mnt/c/Users/benha/data_downloads/noaa_global_temps')
 # working_dir = data_dir / '1931'
@@ -22,6 +21,25 @@ save_dir = Path('csvs')
 
 # region_name = 'us-east-2'
 # bucket_name = 'noaa-temperature-data'
+
+filename = None
+try:
+    year, filename = filename.split('/')
+    PostgresExecute(
+        db_name=local_config.DB_NAME, #'climatedb', 
+        user=local_config.DB_USER, #'postgres', 
+        host=local_config.DB_HOST, #'192.168.86.32', 
+        port=local_config.DB_PORT, #5432,  
+        query="""
+        insert into climate.csv_checker 
+            (year, filename, status, date_create, date_update)
+        values (%s, CURRENT_DATE, CURRENT_DATE, %s)
+        """, 
+        data=(year, filename),
+        commit=True,
+    ).run(password=PrefectSecret('NOAA_LOCAL_DB').run())
+except UniqueViolation:
+    pass
 
 
 def initialize_s3_client(region_name: str) -> boto3.client:
@@ -92,7 +110,7 @@ def aws_year_files(bucket_name: str, region_name: str, year: str):
     aws_file_set = set()
     paginator = s3_client.get_paginator('list_objects_v2')
     pages = paginator.paginate(Bucket=bucket_name, Prefix=year)
-    for page in tqdm(pages):
+    for page in pages: #tqdm(pages):
         list_all_keys = page['Contents']
         # item arrives in format of 'year/filename'; this removes 'year/'
         file_l = [x['Key'].split('/')[1] for x in list_all_keys]
@@ -106,7 +124,7 @@ def process_year_files(year, region_name, bucket_name):
     print(year)
     s3_client = initialize_s3_client(region_name)
     aws_files = aws_year_files(bucket_name, region_name, year)
-    for file_ in tqdm(aws_files, desc=year):
+    for file_ in aws_files: # tqdm(aws_files, desc=year):
         if file_ == '':
             continue
         obj = s3_client.get_object(Bucket=bucket_name, Key=f'{year}/{file_}') 
