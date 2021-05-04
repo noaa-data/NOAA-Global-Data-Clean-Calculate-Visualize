@@ -14,6 +14,7 @@ import boto3
 from botocore.exceptions import ClientError
 from tqdm import tqdm
 import pandas as pd
+from icecream import ic
 
 
 def initialize_s3_client(region_name: str) -> boto3.client:
@@ -49,6 +50,42 @@ def csv_clean_spatial_check(filename, data):
         return filename
 
 
+def unique_values_spatial_check(filename, data):
+    """ Ensure spatial fields are consistent for a site
+    - The spatial fields (latitude, lontitude, elevation) should be the same
+      for a site over the course of the year. There are NOAA temp files
+      where one of the fields will change part of the way through the year.
+      - This *could* be because the site moved, but sometimes it's only
+        one field that changes, which suggests a mistake
+      - There are some circumstances where a float with 1 decimal changes to 2,
+        or an integer becomes a float. These should be identified and corrected.
+    - Also checks to ensure the station ID number doesn't change in the file.
+    """
+    records = pd.read_csv(data, #working_dir / file_, 
+                          dtype={'FRSHTT': str, 'TEMP': str, 'LATITUDE': str, 'LONGITUDE': str, 'ELEVATION': str, 'DATE': str}
+    )
+    records.columns = records.columns.str.strip()    
+    site_number = column_unique_values_check(records['STATION'])
+    latitude = column_unique_values_check(records['LATITUDE'])
+    longitude = column_unique_values_check(records['LONGITUDE'])
+    elevation = column_unique_values_check(records['ELEVATION'])
+    if site_number == 'X':
+        return filename
+    if latitude == 'X':
+        return filename
+    if longitude == 'X':
+        return filename
+    if elevation == 'X':
+        return filename
+
+
+def column_unique_values_check(column) -> str:
+    value_l = column.unique()
+    if len(value_l) > 1:
+        return 'X'
+    return value_l[0]
+
+
 def move_s3_file(
     filename: str, 
     bucket_name: str, 
@@ -59,14 +96,14 @@ def move_s3_file(
     s3_resource = boto3.resource('s3')
     bucket = s3_resource.Bucket(bucket_name)
     # ensure data error folder exists
-    s3_client.put_object(Bucket=bucket_name, Body='', Key=f'_data_errors/')
+    s3_client.put_object(Bucket=bucket_name, Body='', Key=f'_data_error/')
     # ensure year folder exists
     # s3_client.put_object(Bucket=bucket_name, Body='', Key=f'_data_errors/{filename.split("/")[0]}/')
     # Copy object A as object B
     year, file_ = filename.split('/')
     number = file_.split('.')[0]
     copy_source = {'Bucket': bucket_name, 'Key': filename}
-    bucket.copy(copy_source, f'_data_errors/{year}-{number}-{note}.csv')
+    bucket.copy(copy_source, f'_data_error/{year}-{number}-{note}.csv')
     # Delete object A
     s3_resource.Object(bucket_name, filename).delete()
 
@@ -130,20 +167,32 @@ def process_year_files(files_l: list, region_name: str, bucket_name: str):
             continue
         else:
             obj = s3_client.get_object(Bucket=bucket_name, Key=filename) 
-            missing_spatial = csv_clean_spatial_check(
+            data = obj['Body']
+            non_unique_spatial = unique_values_spatial_check(
                 filename=filename,
-                data=obj['Body']
+                data=data
+            )
+            if non_unique_spatial:
+                move_s3_file(non_unique_spatial, bucket_name, s3_client, note='non_unique_spatial')
+                print('uploaded')
+                continue
+            obj = s3_client.get_object(Bucket=bucket_name, Key=filename) 
+            data = obj['Body']
+            spatial_errors = csv_clean_spatial_check(
+                filename=filename,
+                data=data
                 # db_connection=db_connection
             )
-            if missing_spatial:
-                move_s3_file(missing_spatial, bucket_name, s3_client, note='missing_spatial')
+            if spatial_errors:
+                move_s3_file(spatial_errors, bucket_name, s3_client, note='missing_spatial')
+                continue
     print('TASK')
 
 
 if os.environ.get('EXECUTOR') == 'coiled':
     print("Coiled")
     coiled.create_software_environment(
-        name="NOAA-temperature-data-clean1",
+        name="NOAA-temperature-data-clean",
         pip="requirements.txt"
     )
     executor = DaskExecutor(
@@ -151,8 +200,8 @@ if os.environ.get('EXECUTOR') == 'coiled':
         cluster_class=coiled.Cluster,
         cluster_kwargs={
             "shutdown_on_close": True,
-            "name": "NOAA-temperature-data-clean1",
-            "software": "darrida/noaa-temperature-data-clean1",
+            "name": "NOAA-temperature-data-clean",
+            "software": "darrida/noaa-temperature-data-clean",
             "worker_cpu": 4,
             "n_workers": 8,
             "worker_memory":"16 GiB",
