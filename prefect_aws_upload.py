@@ -16,7 +16,7 @@ from tqdm import tqdm
 ###################################################
 # SUPPORT FUNCTIONS
 ###################################################
-def aws_local_year_find_difference(s3_client: boto3, bucket: str, year: str, local_dir: str) -> list:
+def aws_local_year_find_difference(s3_client: boto3, bucket: str, year: str, local_dir: str) -> dict:
     """ Takes individual year and finds file difference between AWS and Local
     
     Args:
@@ -52,8 +52,12 @@ def aws_local_year_find_difference(s3_client: boto3, bucket: str, year: str, loc
     file_difference_set = local_file_set - aws_file_set
 
     # Subtrack 1 from aws_file_ser, because the folder results from AWS include an empty string as one of the set items
-    print(f'{year} - DIFFERENCE: {len(file_difference_set)} (LOCAL: {len(local_file_set)} | CLOUD: {len(aws_file_set) - 1})')
-    return list(file_difference_set)
+    # print(f'{year} - DIFFERENCE: {len(file_difference_set)} (LOCAL: {len(local_file_set)} | CLOUD: {len(aws_file_set) - 1})')
+    return {
+        'file_diff_l': list(file_difference_set), 
+        'local_count': len(local_file_set), 
+        'cloud_count': len(aws_file_set) - 1
+    }
 
 
 def s3_upload_file(s3_client: boto3.client, file_name, bucket, object_name=None):
@@ -80,7 +84,9 @@ def s3_upload_file(s3_client: boto3.client, file_name, bucket, object_name=None)
     return True
 
 
-def aws_load_files_year(s3_client: boto3.client, bucket: str, year: str, local_dir: str, files_l: list) -> int:
+def aws_load_files_year(
+    s3_client: boto3.client, bucket: str, year: str, local_dir: str, files_l: list, local_count: int, cloud_count: int
+) -> int:
     """ Loads set of csv files into aws
     
     Args:
@@ -93,7 +99,7 @@ def aws_load_files_year(s3_client: boto3.client, bucket: str, year: str, local_d
     Return (tuple): Number of upload success (index 0) and failures (index 1)
     """
     upload_count, failed_count = 0, 0
-    for csv_file in tqdm(files_l):
+    for csv_file in tqdm(files_l, desc=f'{year} | local: {local_count} | cloud: {cloud_count}'):
         result = s3_upload_file(
             s3_client=s3_client,
             file_name=str(local_dir / year / csv_file), 
@@ -170,19 +176,22 @@ def load_year_files(year: str, region_name: str, bucket_name: str, working_dir:s
     # If not exists - creates year folder in aws
     s3_client.put_object(Bucket=bucket_name, Body='', Key=f'{year}/')
 
-    file_diff_l = aws_local_year_find_difference(
+    file_diffs = aws_local_year_find_difference(
         s3_client=s3_client,
         bucket=bucket_name,
         year=year,
         local_dir=working_dir
     )
-    if file_diff_l:
+    if file_diffs['file_diff_l']:
         success, failed = aws_load_files_year(
             s3_client=s3_client,
             bucket=bucket_name,
             year=year,
             local_dir=working_dir,
-            files_l=file_diff_l
+            files_l=file_diffs['file_diff_l'],
+            local_count=file_diffs['local_count'],
+            cloud_count=file_diffs['cloud_count']
+            
         )
         print(f'{year} success: {success}, failed: {failed}')
     return True
