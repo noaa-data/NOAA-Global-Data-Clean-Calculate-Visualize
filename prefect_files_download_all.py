@@ -19,9 +19,7 @@
 #     stored in directories for each year)
 # - Includes the following features (to assist with handling the download of 538,000 [34gb] csv files):
 #   - Continue Downloading: If the download is interrupted, the script can pick up where it left off
-#   - Find Gaps: If an indidivual file is added to the source for any year, or removed from the server
-#     for any year, the script can quickly scan all data in both locations, find the differences
-#     and download the missing file(s)
+#   - If caught up with downloads it downloads the current year again (refresh files that are updated everyday)
 ##############################################################################
 
 # PyPI
