@@ -345,7 +345,7 @@ else:
     executor=LocalDaskExecutor(scheduler="threads", num_workers=15)
 
 
-with Flow(name="NOAA Temps: Process CSVs", executor=executor) as flow:
+with Flow(name="NOAA Temps: DB Insert Records", executor=executor) as flow:
     region_name = Parameter('REGION_NAME', default='us-east-1')
     bucket_name = Parameter('BUCKET_NAME', default='noaa-temperature-data')
     db_name = Parameter('DB_NAME', default='d5kg55pc96p21p')
