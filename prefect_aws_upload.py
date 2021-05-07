@@ -170,7 +170,7 @@ def aws_local_folder_difference(aws_year_folders: list, local_year_folders: list
     return sorted(difference_set)
 
 
-@task(log_stdout=True, max_retries=5, retry_delay=timedelta(seconds=5))
+@task(log_stdout=True)
 def load_year_files(year: str, region_name: str, bucket_name: str, working_dir:str):
     s3_client = initialize_s3_client(region_name)
 
