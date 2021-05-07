@@ -55,22 +55,27 @@ def unique_values_spatial_check(filename, data):
         or an integer becomes a float. These should be identified and corrected.
     - Also checks to ensure the station ID number doesn't change in the file.
     """
-    records = pd.read_csv(data, #working_dir / file_, 
-                          dtype={'FRSHTT': str, 'TEMP': str, 'LATITUDE': str, 'LONGITUDE': str, 'ELEVATION': str, 'DATE': str}
-    )
-    records.columns = records.columns.str.strip()    
-    site_number = column_unique_values_check(records['STATION'])
-    latitude = column_unique_values_check(records['LATITUDE'])
-    longitude = column_unique_values_check(records['LONGITUDE'])
-    elevation = column_unique_values_check(records['ELEVATION'])
-    if site_number == 'X':
-        return filename
-    if latitude == 'X':
-        return filename
-    if longitude == 'X':
-        return filename
-    if elevation == 'X':
-        return filename
+    try:
+        records = pd.read_csv(data, #working_dir / file_, 
+                              dtype={'FRSHTT': str, 'TEMP': str, 'LATITUDE': str, 'LONGITUDE': str, 'ELEVATION': str, 'DATE': str}
+        )
+        records.columns = records.columns.str.strip()    
+        site_number = column_unique_values_check(records['STATION'])
+        latitude = column_unique_values_check(records['LATITUDE'])
+        longitude = column_unique_values_check(records['LONGITUDE'])
+        elevation = column_unique_values_check(records['ELEVATION'])
+        if site_number == 'X':
+            return filename
+        if latitude == 'X':
+            return filename
+        if longitude == 'X':
+            return filename
+        if elevation == 'X':
+            return filename
+    except EmptyDataError as e:
+        return 'X'
+
+    
 
 
 def column_unique_values_check(column) -> str:
