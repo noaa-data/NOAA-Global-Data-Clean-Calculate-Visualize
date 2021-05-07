@@ -305,7 +305,7 @@ def insert_records(filename, db_name: str, user: str, host: str, port: str, buck
 
 
 @task(log_stdout=True)
-def vacuum_indexes(db_name: str, user: str, host: str, port: str):
+def vacuum_indexes(db_name: str, user: str, host: str, port: str, wait_for: bool):
     PostgresExecute(
             db_name=db_name, user=user, host=host, port=port,  
         ).run(
