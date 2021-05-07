@@ -11,6 +11,7 @@ import requests
 from pathlib import Path
 import os
 import re
+from datetime import timedelta
 
 @task(log_stdout=True)
 def find_highest_year(url: str, data_dir):
@@ -60,7 +61,7 @@ def query_diff_local_cloud(local_set: set, cloud_set: set) -> set:
     return diff_set
 
 
-@task(log_stdout=True, max_retries=5)
+@task(log_stdout=True, max_retries=5, retry_delay=timedelta(seconds=5))
 def download_new_csvs(url: str, year: int, diff_set: set, data_dir: str) -> bool:
     if int(year) > 0:
         count = 0

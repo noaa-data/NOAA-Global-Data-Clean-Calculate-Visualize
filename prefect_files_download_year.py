@@ -7,7 +7,7 @@ import pandas as pd
 from tqdm import tqdm
 
 # Standard
-from datetime import datetime
+from datetime import datetime, timedelta
 from datetime import date
 from pathlib import Path
 import os, re
@@ -75,7 +75,7 @@ def aws_lists_prep_for_map(file_l: list, list_size: int, wait_for=None) -> List[
     return list(chunks(file_l_consolidated, list_size))
 
 
-@task(log_stdout=True, max_retries=5)
+@task(log_stdout=True, max_retries=5, retry_delay=timedelta(seconds=5))
 def download_new_csvs(url: str, year: str, diff_set: set, data_dir: str, dwnld_count: int) -> bool:
     dwnld_count = int(dwnld_count)
     count = 0

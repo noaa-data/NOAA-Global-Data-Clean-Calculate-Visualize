@@ -3,6 +3,7 @@ import coiled
 import logging
 import os
 from typing import List
+from datetime import timedelta
 
 # PyPI
 import prefect
@@ -161,7 +162,7 @@ def fetch_aws_folders(region_name, bucket_name):
     #return ['2016', '2017', '2018', '2019', '2020', '2021']
 
 
-@task(log_stdout=True, max_retries=5)
+@task(log_stdout=True, max_retries=5, retry_delay=timedelta(seconds=5))
 def aws_all_year_files(year: list, bucket_name: str, region_name: str, wait_for=None):
     # if year == '':
     #     return []
@@ -189,7 +190,7 @@ def aws_lists_prep_for_map(file_l: list, list_size: int, wait_for=None) -> List[
     return list(chunks(file_l_consolidated, list_size))
 
 
-@task(log_stdout=True, max_retries=5)
+@task(log_stdout=True, max_retries=5, retry_delay=timedelta(seconds=5))
 def process_year_files(files_l: list, region_name: str, bucket_name: str):
     s3_client = initialize_s3_client(region_name)
     for filename in tqdm(files_l):
@@ -221,7 +222,7 @@ def process_year_files(files_l: list, region_name: str, bucket_name: str):
     print('TASK')
 
 
-@task(log_stdout=True, max_retries=5)
+@task(log_stdout=True, max_retries=5, retry_delay=timedelta(seconds=5))
 def calculate_year_csv(year_folder, bucket_name, region_name, wait_for=None):
     s3_client = initialize_s3_client(region_name)
     files_l = aws_year_files(year_folder, bucket_name, region_name)
