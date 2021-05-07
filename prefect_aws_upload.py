@@ -8,6 +8,7 @@ from prefect import task, Flow, Parameter
 from prefect.schedules import IntervalSchedule
 from prefect.tasks.secrets import PrefectSecret
 from prefect.executors.dask import LocalDaskExecutor
+from prefect.run_configs.local import LocalRun
 import boto3
 from botocore.exceptions import ClientError
 from prefect.utilities.edges import unmapped
@@ -42,7 +43,7 @@ def aws_local_year_find_difference(s3_client: boto3, bucket: str, year: str, loc
             aws_file_set.add(f)
 
     # List local files for year
-    local_file_set = set(os.listdir(str(local_dir / year)))
+    local_file_set = set(os.listdir(str(Path(local_dir) / year)))
     
     # if local files exist for year, but no AWS files, simply pass on set of local files to upload
     if len(local_file_set) > 1 and len(aws_file_set) == 0:
@@ -199,7 +200,8 @@ def load_year_files(year: str, region_name: str, bucket_name: str, working_dir:s
 
 executor=LocalDaskExecutor(scheduler="threads", num_workers=4)
 with Flow(name="NOAA-files-upload-to-AWS", executor=executor) as flow:
-    working_dir = Parameter('WORKING_LOCAL_DIR', default=Path('/mnt/c/Users/benha/data_downloads/noaa_global_temps'))
+#    working_dir = Parameter('WORKING_LOCAL_DIR', default=Path('/mnt/c/Users/benha/data_downloads/noaa_global_temps'))
+    working_dir = Parameter('WORKING_LOCAL_DIR', default=str(Path('/media/share/store_240a/data_downloads/noaa_daily_avg_temps')))
     region_name = Parameter('REGION_NAME', default='us-east-2')
     bucket_name = Parameter('BUCKET_NAME', default='noaa-temperature-data')
     all_folders = Parameter('ALL_FOLDERS', default=True)
@@ -209,6 +211,8 @@ with Flow(name="NOAA-files-upload-to-AWS", executor=executor) as flow:
     load_year_files.map(
         t3_years, unmapped(region_name), unmapped(bucket_name), unmapped(working_dir)
     )
+
+flow.run_config = LocalRun(working_dir="/home/share/github/1-NOAA-Data-Download-Cleaning-Verification/")
 
 
 if __name__ == '__main__':
