@@ -18,7 +18,7 @@ import pandas as pd
 from icecream import ic
 
 
-execute_version = Parameter('EXECUTOR', default='local')
+execute_version = Parameter('EXECUTOR', default='coiled')
 
 
 def initialize_s3_client(region_name: str) -> boto3.client:
@@ -238,7 +238,7 @@ def calculate_year_csv(year_folder, bucket_name, region_name, wait_for=None):
     s3_client.put_object(Body=content, Bucket=bucket_name, Key=f'year_average/avg_{year_folder}.csv')
 
 
-if execute_version == 'coiled':
+if os.environ.get('EXECUTOR') == 'coiled':
     print("Coiled")
     coiled.create_software_environment(
         name="NOAA-temperature-data-clean",
@@ -261,7 +261,7 @@ else:
     executor=LocalDaskExecutor(scheduler="threads", num_workers=7)
         
 
-with Flow(name="NOAA files: clean and calc averages") as flow:#, executor=executor) as flow:
+with Flow(name="NOAA files: clean and calc averages", executor=executor) as flow:
     # working_dir = Parameter('WORKING_LOCAL_DIR', default=Path('/mnt/c/Users/benha/data_downloads/noaa_global_temps'))
     region_name = Parameter('REGION_NAME', default='us-east-1')
     bucket_name = Parameter('BUCKET_NAME', default='noaa-temperature-data')
@@ -279,6 +279,7 @@ flow.run_config = LocalRun(
     env={"EXECUTOR":"coiled"}
 )
 
+#flow.environment(executor=executor)
 
 if __name__ == '__main__':
     state = flow.run(executor=executor)
