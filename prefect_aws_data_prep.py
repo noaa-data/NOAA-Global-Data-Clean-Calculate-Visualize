@@ -15,6 +15,7 @@ import boto3
 from botocore.exceptions import ClientError
 from tqdm import tqdm
 import pandas as pd
+from pandas.errors import EmptyDataError
 from icecream import ic
 
 
@@ -195,25 +196,28 @@ def process_year_files(files_l: list, region_name: str, bucket_name: str):
         if len(filename) <= 5:
             continue
         else:
-            obj = s3_client.get_object(Bucket=bucket_name, Key=filename) 
-            data = obj['Body']
-            non_unique_spatial = unique_values_spatial_check(
-                filename=filename,
-                data=data
-            )
-            if non_unique_spatial:
-                move_s3_file(non_unique_spatial, bucket_name, s3_client, note='non_unique_spatial')
-                print('uploaded')
-                continue
-            obj = s3_client.get_object(Bucket=bucket_name, Key=filename) 
-            data = obj['Body']
-            spatial_errors = csv_clean_spatial_check(
-                filename=filename,
-                data=data
-            )
-            if spatial_errors:
-                move_s3_file(spatial_errors, bucket_name, s3_client, note='missing_spatial')
-                continue
+            try:
+                obj = s3_client.get_object(Bucket=bucket_name, Key=filename) 
+                data = obj['Body']
+                non_unique_spatial = unique_values_spatial_check(
+                    filename=filename,
+                    data=data
+                )
+                if non_unique_spatial:
+                    move_s3_file(non_unique_spatial, bucket_name, s3_client, note='non_unique_spatial')
+                    print('uploaded')
+                    continue
+                obj = s3_client.get_object(Bucket=bucket_name, Key=filename) 
+                data = obj['Body']
+                spatial_errors = csv_clean_spatial_check(
+                    filename=filename,
+                    data=data
+                )
+                if spatial_errors:
+                    move_s3_file(spatial_errors, bucket_name, s3_client, note='missing_spatial')
+                    continue
+            except EmptyDataError as e:
+                move_s3_file(spatial_errors, bucket_name, s3_client, note='empty_data_error')
     print('TASK')
 
 
