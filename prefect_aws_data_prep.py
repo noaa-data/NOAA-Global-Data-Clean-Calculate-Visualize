@@ -20,8 +20,6 @@ from pandas.errors import EmptyDataError
 from icecream import ic
 
 
-execute_version = Parameter('EXECUTOR', default='coiled')
-
 ########################
 # SUPPORTING FUNCTIONS #
 ########################
@@ -228,7 +226,7 @@ def process_year_files(files_l: list, region_name: str, bucket_name: str):
 
 
 @task(log_stdout=True, max_retries=5, retry_delay=timedelta(seconds=5))
-def calculate_year_csv(year_folder, bucket_name, region_name, wait_for=None):
+def calculate_year_csv(year_folder, bucket_name, region_name, wait_for: str):
     s3_client = initialize_s3_client(region_name)
     files_l = aws_year_files(year_folder, bucket_name, region_name)
     files_l = [x for x in files_l if len(x) > 6]
@@ -290,10 +288,7 @@ with Flow(name="NOAA files: clean and calc averages", executor=executor) as flow
         t1_aws_years, unmapped(bucket_name), unmapped(region_name), wait_for=t4_clean_complete
     )
 
-flow.run_config = LocalRun(
-    working_dir="/home/share/github/1-NOAA-Data-Download-Cleaning-Verification",
-    env={"EXECUTOR":"coiled"}
-)
+flow.run_config = LocalRun(working_dir="/home/share/github/1-NOAA-Data-Download-Cleaning-Verification")
 
 #flow.environment(executor=executor)
 
