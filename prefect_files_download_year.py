@@ -123,8 +123,7 @@ with Flow('NOAA files: Update Year', executor=executor) as flow:
         dwnld_count=unmapped(dwnld_count)
     )
 
-if os.environ.get('WORKING_DIR') == 'share':
-    flow.run_config = LocalRun(working_dir="/home/share/github/1-NOAA-Data-Download-Cleaning-Verification/")
+flow.run_config = LocalRun(working_dir="/home/share/github/1-NOAA-Data-Download-Cleaning-Verification/")
 
 
 if __name__ == '__main__':

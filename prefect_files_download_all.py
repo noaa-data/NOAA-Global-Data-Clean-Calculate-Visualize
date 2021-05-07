@@ -126,8 +126,7 @@ with Flow('NOAA files: Download All', executor=executor) as flow:
     t6_next = download_new_csvs(url=t2_url, year=t1_year, diff_set=t5_dset, data_dir=data_dir)
     t7_task = find_new_year(url=base_url, next_year=t6_next, year=t1_year, data_dir=data_dir)
 
-if os.environ.get('WORKING_DIR') == 'share':
-    flow.run_config = LocalRun(working_dir="/home/share/github/1-NOAA-Data-Download-Cleaning-Verification/")
+flow.run_config = LocalRun(working_dir="/home/share/github/1-NOAA-Data-Download-Cleaning-Verification/")
 
 
 if __name__ == '__main__':
