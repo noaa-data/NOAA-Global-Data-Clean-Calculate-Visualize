@@ -298,7 +298,8 @@ def insert_records(filename, db_name: str, user: str, host: str, port: str, buck
 
 
 # IF REGISTERING FOR THE CLOUD, CREATE A LOCAL ENVIRONMENT VARIALBE FOR 'EXECTOR' BEFORE REGISTERING
-if os.environ.get('EXECUTOR') == 'coiled':
+coiled_ex = True
+if coiled_ex == True:
     print("Coiled")
     coiled.create_software_environment(
         name="NOAA-temperature-data-clean",
