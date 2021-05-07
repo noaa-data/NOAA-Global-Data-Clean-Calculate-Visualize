@@ -356,7 +356,7 @@ with Flow(name="NOAA Temps: Process CSVs", executor=executor) as flow:
     t5_task = insert_records.map(t4_csv_list, 
         unmapped(db_name), unmapped(user), unmapped(host), unmapped(port), unmapped(bucket_name), unmapped(region_name)
     )
-    t6_task = vacuum_indexes(db_name, user, host, port)
+    t6_task = vacuum_indexes(db_name, user, host, port, wait_for=t5_task)
 
 flow.run_config = LocalRun(working_dir="/home/share/github/1-NOAA-Data-Download-Cleaning-Verification")
 
