@@ -129,7 +129,7 @@ def local_list_folders(working_dir: str) -> list:
     return os.listdir(str(working_dir))
 
 
-@task(log_stdout=True)
+@task(log_stdout=True, max_retries=5)
 def s3_list_folders(region_name, bucket_name: str) -> list:
     """ List folder as root of AWS bucket
 
@@ -149,7 +149,7 @@ def s3_list_folders(region_name, bucket_name: str) -> list:
     return [x.split('/')[0] for x in folder_list]
 
 
-@task(log_stdout=True)
+@task(log_stdout=True, max_retries=5)
 def aws_local_folder_difference(aws_year_folders: list, local_year_folders: list, all: bool=False) -> set:
     """ Finds year folders not yet in AWS
 
@@ -170,7 +170,7 @@ def aws_local_folder_difference(aws_year_folders: list, local_year_folders: list
     return sorted(difference_set)
 
 
-@task(log_stdout=True)
+@task(log_stdout=True, max_retries=5)
 def load_year_files(year: str, region_name: str, bucket_name: str, working_dir:str):
     s3_client = initialize_s3_client(region_name)
 
