@@ -10,11 +10,15 @@ from prefect import task, Flow, Parameter
 # from prefect.engine.executors.dask import DaskExecutor, LocalDaskExecutor
 from prefect.executors.dask import DaskExecutor, LocalDaskExecutor
 from prefect.utilities.edges import unmapped
+from prefect.run_configs.local import LocalRun
 import boto3
 from botocore.exceptions import ClientError
 from tqdm import tqdm
 import pandas as pd
 from icecream import ic
+
+
+execute_version = Parameter('EXECUTOR', default='local')
 
 
 def initialize_s3_client(region_name: str) -> boto3.client:
@@ -147,9 +151,8 @@ def fetch_aws_folders(region_name, bucket_name):
     folder_list = [x.split('/')[0] for x in folder_list]
     # ic(folder_list)
     folder_list = [x for x in folder_list if x != '']
-    # return sorted(folder_list)[:5]
-    # return folder_list
-    return ['2016', '2017', '2018', '2019', '2020', '2021']
+    return sorted(folder_list)
+    #return ['2016', '2017', '2018', '2019', '2020', '2021']
 
 
 @task(log_stdout=True)
@@ -235,7 +238,7 @@ def calculate_year_csv(year_folder, bucket_name, region_name, wait_for=None):
     s3_client.put_object(Body=content, Bucket=bucket_name, Key=f'year_average/avg_{year_folder}.csv')
 
 
-if os.environ.get('EXECUTOR') == 'coiled':
+if execute_version == 'coiled':
     print("Coiled")
     coiled.create_software_environment(
         name="NOAA-temperature-data-clean",
@@ -271,6 +274,10 @@ with Flow(name="NOAA files: clean and calc averages") as flow:#, executor=execut
         t1_aws_years, unmapped(bucket_name), unmapped(region_name), wait_for=t4_clean_complete
     )
 
+flow.run_config = LocalRun(
+    working_dir="/home/share/github/1-NOAA-Data-Download-Cleaning-Verification",
+    env={"EXECUTOR":"coiled"}
+)
 
 
 if __name__ == '__main__':
