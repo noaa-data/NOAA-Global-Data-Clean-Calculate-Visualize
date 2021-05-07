@@ -1,36 +1,57 @@
+##############################################################################
+# Author: Ben Hammond
+# Last Changed: 5/7/21
+#
+# REQUIREMENTS
+# - Detailed dependencies in requirements.txt
+# - Directly referenced:
+#   - prefect, boto3, tqdm, pandas, icecream, coiled, psycopg2
+#   - psycopg2-binary==2.8.6 ('binary' version apparently intended to be used for dev/testing,
+#                             but requires fewer additional system dependencies to be installed)
+# - Infrastructure:
+#   - Prefect: Script is registered as a Prefect flow with api.prefect.io
+#     - Source: https://prefect.io 
+#   - Coiled: Prefect executor calls a Dask cluster hosted on Coiled (which is on AWS)
+#     - Source: https://coiled.io
+#     - Credentials: Stored localled in default user folder created by Coiled CLI
+#   - AWS S3: Script retrieves stored in a S3 bucket
+#     - Credentials: Stored localled in default user folder created by AWS CLI
+#   - Heroku: Records are inserted into a PostgreSQL database on Heroku
+#     - Source: https://www.heroku.com/
+#     - Notes: PostGIS is installed in the PostgreSQL instance
+#     - DB Credentials: Basic creds are hardcoded in script. Password is retrieved
+#       from the Prefect Secrets manager
+#
+# DESCRIPTION
+# - Reads files containing NOAA temp calculated averages per year per site
+# - Inserts data from files into PostgreSQL (PostGIS) hosted in Heroku
+#   - Table: climate.noaa_year_averages
+#   - Uses latitude and longitude to create PostGIS geometry columns
+# - Additional light data cleaning to catch what previous processes missed
+##############################################################################
+
 # Standard
 import sys
 sys.settrace
-from csv import reader
-from pathlib import Path
-from pprint import pprint
-from datetime import timedelta, datetime
+from datetime import timedelta
 import os
+import traceback
 
 # PyPI
+import coiled
 import prefect
 from prefect import task, Flow, Parameter
-from prefect.tasks.postgres import PostgresExecute, PostgresFetch, PostgresExecuteMany
-from prefect.schedules import IntervalSchedule
+from prefect.tasks.postgres import PostgresExecute, PostgresFetch
 from prefect.tasks.secrets import PrefectSecret
-from prefect.engine.signals import LOOP
 from prefect.utilities.edges import unmapped
 from prefect.run_configs.local import LocalRun
 import boto3
-#from prefect.engine.executors import LocalDaskExecutor
-#from prefect.executors import LocalDaskExecutor
-from prefect.executors.dask import LocalDaskExecutor
-import psycopg2 as pg
-from psycopg2.errors import UniqueViolation, InvalidTextRepresentation # pylint: disable=no-name-in-module
-
-# url = 'https://www.ncei.noaa.gov/data/global-summary-of-the-day/access/'
-# export PREFECT__CONTEXT__SECRETS__MY_KEY="MY_VALUE"
-# export PREFECT__ENGINE__EXECUTOR__DEFAULT_CLASS="prefect.engine.executors.LocalDaskExecutor"
-# prefect agent start --name dask_test
-# prefect register flow --file psql_sample.py --name psql_test_v2 --project 
-# ? add_default_labels=False
-
-# local testing: export NOAA_TEMP_CSV_DIR=$PWD/test/data_downloads/noaa_daily_avg_temps
+import pandas as pd
+from prefect.executors.dask import DaskExecutor, LocalDaskExecutor
+import psycopg2
+from psycopg2.errors import UniqueViolation, InFailedSqlTransaction
+from psycopg2.errors import SyntaxError, InFailedSqlTransaction
+from icecream import ic
 
 
 ########################
@@ -40,31 +61,127 @@ def initialize_s3_client(region_name: str) -> boto3.client:
     return boto3.client('s3', region_name=region_name)
 
 
+def df_if_two_one(value):
+    """ Final Data Cleaning Function
+    - This is run against station, latitude, longitude, and elevation for indidividual records
+      - Many of these records have usable data, so don't want to just throw them out.
+      - Example issues:
+        - Instead of a station of '000248532' a value may contain '000248532 000248532'
+          - Both are equal - function returns the first one
+        - Instead of a latitude of '29.583' a value may contain '29.583 29.58333333'
+          - This is from raw csv data files where they changed the number of decimal points userd 
+            part of the way through a year.
+          - Function converts both to integers, which rounds up to the nearest whole number. If both
+            whole numbers are equal, then the function returns the first value from the original pair.
+
+    Args:
+        value (str): value to check and clean if needed
+    
+    Returns: str
+    """
+    split = value.split(' ')
+    if len(split) > 1:
+        if '.' in split[0]:
+            if int(float(split[0])) == int(float(split[1])):
+                return split[0]
+        elif split[0] == split[1]:
+            return split[0]
+    return value
+
+
+class database:
+    def __init__(self, user, password, port, dbname, host):
+        try:
+            self.__db_connection = psycopg2.connect(
+                user=user,
+                password=password,
+                port=port,
+                database=dbname,
+                host=host,
+                sslmode='require'
+            )
+            self.cursor = self.__db_connection.cursor
+            self.commit = self.__db_connection.commit
+            self.rollback = self.__db_connection.rollback
+        except psycopg2.OperationalError as e:
+            if str(e).startswith("FATAL:"):
+                sys.exit()
+            if str(e).startswith("could not connect to server: Connection refused"):
+                sys.exit()
+            if str(e).startswith("could not translate host name"):
+                sys.exit()
+            raise psycopg2.OperationalError(e)
+        except psycopg2.Error as e:
+            exit()
+
+    def __enter__(self):
+        return self
+
+    def __del__(self):
+        try:
+            self.__db_connection.close()
+        except AttributeError as e:
+            if (
+                str(e)
+                != "'database' object has no attribute '_database__db_connection'"
+            ):
+                raise AttributeError(e)
+
+    def __exit__(self, ext_type, exc_value, traceback):
+        if isinstance(exc_value, Exception) or ext_type is not None:
+            self.rollback()
+        else:
+            self.commit()
+        self.__db_connection.close()
+
+    def execute_insert(self, sql: str, params=None):
+        try:
+            cursor = self.cursor()
+            if params:
+                cursor.execute(sql, params)
+                return True
+            cursor.execute(sql)
+            return True
+        except SyntaxError as e:
+            self.rollback()
+            traceback.print_exc()
+            sys.exit()
+        except InFailedSqlTransaction as e:
+            self.rollback()
+            if not str(e).startswith("current transaction is aborted"):
+                raise InFailedSqlTransaction(e)
+            traceback.print_exc()
+            sys.exit()
+
+    def execute_query(self, sql: str, params=None):
+        try:
+            cursor = self.cursor()
+            if params:
+                cursor.execute(sql, params)
+            else:
+                cursor.execute(sql)
+            return cursor.fetchall()
+        except SyntaxError as e:
+            self.rollback()   
+            traceback.print_exc()
+            sys.exit()
+        except InFailedSqlTransaction as e:
+            self.rollback()
+            if not str(e).startswith("current transaction is aborted"):
+                raise InFailedSqlTransaction(e)
+            traceback.print_exc()
+            sys.exit()
+
+
 ####################
 # PREFECT WORKFLOW #
 ####################
-@task(log_stdout=True)
-def fetch_aws_folders(region_name, bucket_name):
-    s3_client = initialize_s3_client(region_name)
-    response = s3_client.list_objects_v2(Bucket=bucket_name, Prefix='', Delimiter='/')
-    def yield_folders(response):
-        for content in response.get('CommonPrefixes', []):
-            yield content.get('Prefix')
-    folder_list = yield_folders(response)
-    # remove '/' from end of each folder name
-    folder_list = [x.split('/')[0] for x in folder_list]
-    # ic(folder_list)
-    folder_list = [x for x in folder_list if x != '']
-    return sorted(folder_list)
-    #return ['2016', '2017', '2018', '2019', '2020', '2021']
-
-
 @task(log_stdout=True, max_retries=5, retry_delay=timedelta(seconds=5))
-def aws_all_year_files(year: list, bucket_name: str, region_name: str, wait_for=None):
+def aws_all_year_files(bucket_name: str, region_name: str, wait_for=None):
     s3_client = initialize_s3_client(region_name)
     aws_file_set = set()
     paginator = s3_client.get_paginator('list_objects_v2')
-    pages = paginator.paginate(Bucket=bucket_name, Prefix=year)
+    pages = paginator.paginate(Bucket=bucket_name, Prefix='year_average/')
     for page in pages:
         list_all_keys = page['Contents']
         # item arrives in format of 'year/filename'; this extracts that
@@ -75,203 +192,134 @@ def aws_all_year_files(year: list, bucket_name: str, region_name: str, wait_for=
     return list(sorted(aws_file_set))
 
 
-# @task(log_stdout=True)
-# def list_csvs(work_dir: str):
-#     csv_list = []
-#     data_dir = Path(work_dir)
-#     for year in os.listdir(path=data_dir):
-#         csv_folder = (data_dir / str(year)).rglob('*.csv')
-#         csv_list = csv_list + [str(x) for x in csv_folder]
-#     print(csv_list[0])
-#     return csv_list
-
-
-# @task(log_stdout=True)
-# def list_db_years(db_name: str, user: str, host: str, port: str, waiting_for: str) -> list:
-#     db_years = PostgresFetch(
-#         db_name=db_name, user=user, host=host, port=port,
-#         fetch="all",
-#         query="""
-#         select distinct year, date_update from climate.csv_checker
-#         order by date_update
-#         """
-#     ).run(password=PrefectSecret('HEROKU_DB_PW').run())
-#     db_years.insert(0, db_years.pop())   # Move last item in the list to the first
-#                                          # - We want to check the most recent year first, since csvs in that dir
-#                                          #   may not be complete (we are not doing the full number of csvs for some dirs
-#                                          #   with each run)
-#                                          # - Then we move to the oldest checked folder in the list to move forward
-#     return db_years
-
-
 @task(log_stdout=True)
 def select_session_csvs(
-    aws_csvs: list, job_size: int, db_name: str, user: str, host: str,
+    aws_files: list, db_name: str, user: str, host: str,
     port: str
 ) -> list:
-    return_list = []
-
-    aws_files = sum(aws_csvs, [])
-    print(aws_files[:3])
     aws_files = [x for x in aws_files if x != '']
+    aws_files = [x for x in aws_files if x.split('/')[1]]
 
-    # AWS SET
-    csv_set = set()
-    for csv in aws_files:
-        csv_list = csv.split('/') if '/' in csv else csv.split('\\')
-        csv_str = f'{csv_list[-2]}-{csv_list[-1]}'
-        csv_set.add(csv_str)
-    print(f'csvs from folder: {len(csv_set)}')
-    print(aws_files[:3])
-
-    year_db_csvs = PostgresFetch(
+    db_years = PostgresFetch(
         db_name=db_name, user=user, host=host, port=port,
         fetch="all",
         query=f"""
-        select year, station from climate.csv_checker
+        select year from climate.csv_checker
         order by date_update
         """
-    ).run(password='37b339a09ef5d442dfe0ba71065ebdc9520a00f71599d4e51fb243af86e79b3e')#PrefectSecret('HEROKU_DB_PW').run())
-
-    # DB SET
-    year_db_set = set()
-    for year_db in year_db_csvs:
-        year_db_str = f'{year_db[0]}-{year_db[1]}'
-        year_db_set.add(year_db_str)
-    print(f'csv_checker set: {len(year_db_set)}')
+    ).run(password=PrefectSecret('HEROKU_DB_PW').run())
 
     # SET DIFF, SORT
-    new_set = csv_set.difference(year_db_set)
-    new_set = sorted(new_set)
-    print(f'new_set: {len(new_set)}')
+    diff_list = [x for x in aws_files if x.split('_')[1] not in db_years]
+    return (sorted(diff_list))
 
-    # CONVERT TO LIST, SELECT SHORT SUBSET
-    new_list = []
-    set_empty = False
-    while len(new_list) < job_size and not set_empty:
-        if len(new_set)>0:
-            new_list.append(new_set.pop())
-        else:
-            set_empty = True
-    new_list = [x.split('-') for x in new_list]
-    new_list = new_list[:job_size]
 
-    # REBUILD LIST OF FILE PATH LOCATIONS
-    # data_dir = Path(data_dir)
-    # return_list = [f'{data_dir}/{x[0]}/{x[1]}' for x in new_list]
-    # print(f'retun_list: {len(return_list)}')
-    # return return_list
-                
+@task(log_stdout=True)
+def insert_records(filename, db_name: str, user: str, host: str, port: str, bucket_name, region_name):
+    year = filename.strip('year_average/avg_')
+    year = year.strip('.csv')
+    # Retrieve file data from AWS S3
+    s3_client = initialize_s3_client(region_name)
+    obj = s3_client.get_object(Bucket=bucket_name, Key=filename) 
+    data = obj['Body']
+    csv_df = pd.read_csv(data)
+    csv_df['SITE_NUMBER'] = csv_df['SITE_NUMBER'].str.strip(']')
+    csv_df['SITE_NUMBER'] = csv_df['SITE_NUMBER'].str.strip('[')
+    csv_df['LATITUDE'] = csv_df['LATITUDE'].str.strip(']')
+    csv_df['LATITUDE'] = csv_df['LATITUDE'].str.strip('[')
+    csv_df['LONGITUDE'] = csv_df['LONGITUDE'].str.strip(']')
+    csv_df['LONGITUDE'] = csv_df['LONGITUDE'].str.strip('[')
+    csv_df['ELEVATION'] = csv_df['ELEVATION'].str.strip(']')
+    csv_df['ELEVATION'] = csv_df['ELEVATION'].str.strip('[')
 
-# @task(log_stdout=True) # pylint: disable=no-value-for-parameter
-# def open_csv(filename: str):
-#     print(filename)
-#     with open(filename) as read_obj:
-#         csv_reader = reader(read_obj)
-#         # Get all rows of csv from csv_reader object as list of tuples
-#         return list(map(tuple, csv_reader))
-#     raise LOOP(message)
+    conn_info = {
+        "user": user,
+        "password": PrefectSecret('HEROKU_DB_PW').run(),
+        "host": host,
+        "dbname": db_name,
+        "port": port,
+    }
 
-# @task(log_stdout=True) # pylint: disable=no-value-for-parameter
-# def insert_stations(list_of_tuples: list):#, password: str):
-#     insert = 0
-#     unique_key_violation = 0
-
-#     #print(len(list_of_tuples))
-#     insert = 0
-#     unique_key_violation = 0
-#     for row in list_of_tuples[1:2]:
-#         station = row[0]
-#         latitude = row[2] if row[2] != '' else None
-#         longitude = row[3] if row[3] != '' else None
-#         elevation = row[4] if row[4] != '' else None
-#         name = row[5]
-#         try:
-#             PostgresExecute(
-#                 db_name=local_config.DB_NAME, #'climatedb', 
-#                 user=local_config.DB_USER, #'postgres', 
-#                 host=local_config.DB_HOST, #'192.168.86.32', 
-#                 port=local_config.DB_PORT, #5432, 
-#                 query="""
-#                 insert into climate.noaa_global_temp_sites 
-#                     (station, latitude, longitude, elevation, name)
-#                 values (%s, %s, %s, %s, %s)
-#                 """, 
-#                 data=(station, latitude, longitude, elevation, name), 
-#                 commit=True,
-#             ).run(password=PrefectSecret('HEROKU_DB_PW').run())
-#             insert += 1
-#         except UniqueViolation:
-#             unique_key_violation += 1
-#         except InvalidTextRepresentation as e:
-#             print(e)
-#     print(f'STATION INSERT RESULT: inserted {insert} records | {unique_key_violation} duplicates')
-
-@task(log_stdout=True) # pylint: disable=no-value-for-parameter
-def insert_records(filename, db_name: str, user: str, host: str, port: str):
-    with open(filename) as read_obj:
-        csv_reader = reader(read_obj)
-        # Get all rows of csv from csv_reader object as list of tuples
-        list_of_tuples = list(map(tuple, csv_reader))
-    
-    #insert = 0
-    if not list_of_tuples:
-        return
-    unique_key_violation = 0
-    new_list = []
-    for row in list_of_tuples[1:]:
-        # SITE_NUMBER,LATITUDE,LONGITUDE,ELEVATION,AVERAGE_TEMP,DEWP,STP,MIN,MAX,PRCP
-        year=row[1][:4]
-        station=row[0]
-        latitude=row[2]
-        longitude=row[3]
-        elevation=row[4]
-        temp=row[6]
-        dewp=row[8]
-        stp=row[12]
-        max_v=row[20]
-        min_v=row[22]
-        prcp=row[24] 
-        new_tuple = (year, station, latitude, longitude, elevation, temp, dewp, stp, max_v, min_v, prcp)
-        new_list.append(new_tuple)
-        insert = 0
+    with database(**conn_info) as conn:
+        for i in csv_df.index:
+            vals  = [csv_df.at[i,col] for col in list(csv_df.columns)]
+            station = vals[0]
+            # df_if_two_one cleans a few issues left over from the data cleaning and calc steps
+            station = df_if_two_one(station)
+            latitude = vals[1]
+            latitude = df_if_two_one(latitude)
+            longitude = vals[2]
+            longitude = df_if_two_one(longitude)
+            if latitude == 'nan' and longitude == 'nan':
+                continue
+            try:
+                cursor = conn.cursor()
+                val = cursor.callproc('ST_GeomFromText', ((f'POINT({latitude} {longitude})'), 4326))
+                geom = cursor.fetchone()[0]
+                insert_str="""
+                    insert into climate.noaa_year_averages 
+                        (year, station, latitude, longitude, elevation, temp, dewp, stp, max, min, prcp, geom)
+                    values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """
+                conn.execute_insert(insert_str, (
+                    year, vals[0], vals[1], vals[2], vals[3], vals[4], vals[5], vals[6], vals[7], vals[8], vals[9], geom,)
+                )
+            except UniqueViolation as e:
+                # Record already exists
+                pass
+            except InFailedSqlTransaction as e:
+                # Record exists, so transaction with "geom" is removed
+                pass
+            except Exception as e:
+                if 'parse error - invalid geometry' in str(e):
+                    # Error in spatial data
+                    ic(latitude, longitude)
+                print(e)
+                ic(vals[0], year)
+                raise Exception(e)
     try:
-        PostgresExecuteMany(
-            db_name=db_name, user=user, host=host, port=port, 
-            query="""
-            insert into climate.noaa_global_daily_temps 
-                (year, station, latitude, longitude, elevation, temp, dewp, stp, max, min, prcp)
-            values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """, 
-            data=new_list,
-            commit=True,
-        ).run(password=PrefectSecret('HEROKU_DB_PW').run())
-        insert = len(new_list)
-    except UniqueViolation:
-        unique_key_violation += 1
-    try:
-        csv_filename = station + '.csv'
         PostgresExecute(
             db_name=db_name, user=user, host=host, port=port,  
+        ).run(
             query="""
             insert into climate.csv_checker 
-                (station, date_create, date_update, year)
-            values (%s, CURRENT_DATE, CURRENT_DATE, %s)
+                (year, date_create, date_update)
+            values (%s, CURRENT_DATE, CURRENT_DATE)
             """, 
-            data=(csv_filename, year),
+            data=(year,),
             commit=True,
-        ).run(password=PrefectSecret('HEROKU_DB_PW').run())
+            password=PrefectSecret('HEROKU_DB_PW').run()
+        )
     except UniqueViolation:
         pass
-    print(f'RECORD INSERT RESULT: inserted {insert} records | {unique_key_violation} duplicates')
+    except TypeError as e:
+        ic(vals[0], year)
+        ic(e)
 
 
-schedule = IntervalSchedule(
-    start_date=datetime.utcnow() + timedelta(seconds=1),
-    interval=timedelta(seconds=10),
-)
+# IF REGISTERING FOR THE CLOUD, CREATE A LOCAL ENVIRONMENT VARIALBE FOR 'EXECTOR' BEFORE REGISTERING
+if os.environ.get('EXECUTOR') == 'coiled':
+    print("Coiled")
+    coiled.create_software_environment(
+        name="NOAA-temperature-data-clean",
+        pip="requirements.txt"
+    )
+    executor = DaskExecutor(
+        debug=True,
+        cluster_class=coiled.Cluster,
+        cluster_kwargs={
+            "shutdown_on_close": True,
+            "name": "NOAA-temperature-data-clean",
+            "software": "darrida/noaa-temperature-data-clean",
+            "worker_cpu": 4,
+            "n_workers": 3,
+            "worker_memory":"16 GiB",
+            "scheduler_memory": "16 GiB",
+        },
+    )
+else:
+    executor=LocalDaskExecutor(scheduler="threads", num_workers=15)
 
-executor=LocalDaskExecutor(scheduler="processes", num_workers=8)
 
 with Flow(name="NOAA Temps: Process CSVs", executor=executor) as flow:
     region_name = Parameter('REGION_NAME', default='us-east-1')
@@ -280,16 +328,13 @@ with Flow(name="NOAA Temps: Process CSVs", executor=executor) as flow:
     user = Parameter('USER', default='ziuixeipnmbrjm')
     host = Parameter('HOST', default='ec2-3-231-241-17.compute-1.amazonaws.com')
     port = Parameter('PORT', default='5432')
-    job_size = Parameter('JOB_SIZE', default=200)
-    # t1_csvs = list_csvs()
-    t2_aws_years = fetch_aws_folders(region_name, bucket_name)
-    t3_aws_files = aws_all_year_files.map(t2_aws_years, unmapped(bucket_name), unmapped(region_name))
-    t4_session = select_session_csvs(t3_aws_files, job_size, db_name, user, host, port)
-    t5_records = insert_records.map(t4_session, db_name, user, host, port)
-
+    t3_aws_files = aws_all_year_files(bucket_name, region_name)
+    t4_csv_list = select_session_csvs(t3_aws_files, db_name, user, host, port)
+    t5_task = insert_records.map(t4_csv_list, 
+        unmapped(db_name), unmapped(user), unmapped(host), unmapped(port), unmapped(bucket_name), unmapped(region_name)
+    )
 
 flow.run_config = LocalRun(working_dir="/home/share/github/1-NOAA-Data-Download-Cleaning-Verification")
 
 if __name__ == '__main__':
     state = flow.run()
-    assert state.is_successful()

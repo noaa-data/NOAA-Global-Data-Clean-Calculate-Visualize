@@ -1,3 +1,32 @@
+##############################################################################
+# Author: Ben Hammond
+# Last Changed: 5/7/21
+#
+# REQUIREMENTS
+# - Detailed dependencies in requirements.txt
+# - Directly referenced:
+#   - prefect, boto3, tqdm, pandas, icecream, coiled
+#
+# - Infrastructure:
+#   - Prefect: Script is registered as a Prefect flow with api.prefect.io
+#     - Source: https://prefect.io 
+#   - Coiled: Prefect executor calls a Dask cluster hosted on Coiled (which is on AWS)
+#     - Source: https://coiled.io
+#     - Credentials: Stored localled in default user folder created by Coiled CLI
+#   - AWS S3: Script retrieves and creates files stored in a S3 bucket
+#     - Credentials: Stored localled in default user folder created by AWS CLI
+#
+# DESCRIPTION
+# - Reads files containing raw NOAA temperature information in S3 bucket
+# - Creates a set of lists (list of lists) to run as a map against data functions
+# - Map: Removes files that are missing spatial data
+# - Map: Removes files that have inconsistent spatial data (i.e., latitude changes part of 
+#        the way through the year in such a way that seems like a mistake)
+# - Reduce: Takes the site data files from each year and creates a single file for
+#           the year that contains the yearly averages for each temperature site
+#   - The data in these new files will be inserted into a PostgreSQL database
+##############################################################################
+
 import coiled
 
 import logging
@@ -276,7 +305,6 @@ else:
         
 
 with Flow(name="NOAA files: clean and calc averages", executor=executor) as flow:
-    # working_dir = Parameter('WORKING_LOCAL_DIR', default=Path('/mnt/c/Users/benha/data_downloads/noaa_global_temps'))
     region_name = Parameter('REGION_NAME', default='us-east-1')
     bucket_name = Parameter('BUCKET_NAME', default='noaa-temperature-data')
     map_list_size = Parameter('MAP_LIST_SIZE', default=500)
@@ -290,10 +318,5 @@ with Flow(name="NOAA files: clean and calc averages", executor=executor) as flow
 
 flow.run_config = LocalRun(working_dir="/home/share/github/1-NOAA-Data-Download-Cleaning-Verification")
 
-#flow.environment(executor=executor)
-
 if __name__ == '__main__':
     state = flow.run(executor=executor)
-    # flow.visualize(flow_state=state)
-    print(state.is_successful())
-    # assert state.is_successful()

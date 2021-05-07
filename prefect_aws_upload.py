@@ -1,3 +1,28 @@
+##############################################################################
+# Author: Ben Hammond
+# Last Changed: 5/7/21
+#
+# REQUIREMENTS
+# - Detailed dependencies in requirements.txt
+# - Directly referenced:
+#   - prefect, boto3, tqdm
+#
+# - Infrastructure:
+#   - Prefect: Script is registered as a Prefect flow with api.prefect.io
+#     - Source: https://prefect.io 
+#   - AWS S3: Script retrieves and creates files stored in a S3 bucket
+#     - Credentials: Stored localled in default user folder created by AWS CLI
+#
+# DESCRIPTION
+# - Uploads local NOAA temperature csv files to AWS S3 storage
+# - Includes the following features (to assist with handling the download of 538,000 [34gb] csv files):
+#   - Continue Downloading: If the download is interrupted, the script can pick up where it left off
+#   - Find Gaps: If an indidivual file is added to the source for any year, or removed from the server
+#     for any year, the script can quickly scan all data in both locations, find the differences
+#     and download the missing file(s)
+# - Map: Uses map over a list of folders to upload files from each folder in a distributed/parallel fashion
+##############################################################################
+
 from datetime import datetime, timedelta
 import logging
 import os
@@ -5,8 +30,6 @@ from pathlib import Path
 
 # PyPI
 from prefect import task, Flow, Parameter
-from prefect.schedules import IntervalSchedule
-from prefect.tasks.secrets import PrefectSecret
 from prefect.executors.dask import LocalDaskExecutor
 from prefect.run_configs.local import LocalRun
 import boto3

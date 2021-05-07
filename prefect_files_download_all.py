@@ -1,3 +1,29 @@
+##############################################################################
+# Author: Ben Hammond
+# Last Changed: 5/7/21
+#
+# REQUIREMENTS
+# - Detailed dependencies in requirements.txt
+# - Directly referenced:
+#   - prefect, bs4, requests
+#
+# - Infrastructure:
+#   - Prefect: Script is registered as a Prefect flow with api.prefect.io
+#     - Source: https://prefect.io 
+#
+# DESCRIPTION
+# - Uses requests and bs4 to webscrape a NOAA web page containing temperature data (goes back to 1929)
+#   - Source: https://www.ncei.noaa.gov/data/global-summary-of-the-day/access/
+# - Uses requests to download the files and store them on a local server
+#   - Local files are in the same directory structure as the website (individual site files
+#     stored in directories for each year)
+# - Includes the following features (to assist with handling the download of 538,000 [34gb] csv files):
+#   - Continue Downloading: If the download is interrupted, the script can pick up where it left off
+#   - Find Gaps: If an indidivual file is added to the source for any year, or removed from the server
+#     for any year, the script can quickly scan all data in both locations, find the differences
+#     and download the missing file(s)
+##############################################################################
+
 # PyPI
 from prefect import task, Flow, Parameter
 from prefect.schedules import IntervalSchedule
