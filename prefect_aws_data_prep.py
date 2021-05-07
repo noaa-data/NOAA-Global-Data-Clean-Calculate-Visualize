@@ -20,7 +20,9 @@ from icecream import ic
 
 execute_version = Parameter('EXECUTOR', default='coiled')
 
-
+########################
+# SUPPORTING FUNCTIONS #
+########################
 def initialize_s3_client(region_name: str) -> boto3.client:
     return boto3.client('s3', region_name=region_name)
 
@@ -139,6 +141,9 @@ def s3_upload_file(s3_client: boto3.client, file_name, bucket, object_name=None)
     return True
 
 
+####################
+# PREFECT WORKFLOW #
+####################
 @task(log_stdout=True)
 def fetch_aws_folders(region_name, bucket_name):
     s3_client = initialize_s3_client(region_name)
@@ -238,6 +243,7 @@ def calculate_year_csv(year_folder, bucket_name, region_name, wait_for=None):
     s3_client.put_object(Body=content, Bucket=bucket_name, Key=f'year_average/avg_{year_folder}.csv')
 
 
+# IF REGISTERING FOR THE CLOUD, CREATE A LOCAL ENVIRONMENT VARIALBE FOR 'EXECTOR' BEFORE REGISTERING
 if os.environ.get('EXECUTOR') == 'coiled':
     print("Coiled")
     coiled.create_software_environment(
