@@ -52,6 +52,7 @@ import psycopg2
 from psycopg2.errors import UniqueViolation, InFailedSqlTransaction
 from psycopg2.errors import SyntaxError, InFailedSqlTransaction
 from icecream import ic
+from tqdm import tqdm
 
 
 ########################
@@ -211,7 +212,8 @@ def select_session_csvs(
 
     # SET DIFF, SORT
     diff_list = [x for x in aws_files if x.split('_')[1] not in db_years]
-    return (sorted(diff_list))
+    # return (sorted(diff_list))
+    return ['year_average/avg_2021.csv']
 
 
 @task(log_stdout=True)
@@ -241,7 +243,8 @@ def insert_records(filename, db_name: str, user: str, host: str, port: str, buck
     }
 
     with database(**conn_info) as conn:
-        for i in csv_df.index:
+        commit_count = 0
+        for i in tqdm(csv_df.index):
             vals  = [csv_df.at[i,col] for col in list(csv_df.columns)]
             station = vals[0]
             # df_if_two_one cleans a few issues left over from the data cleaning and calc steps
@@ -264,6 +267,7 @@ def insert_records(filename, db_name: str, user: str, host: str, port: str, buck
                 conn.execute_insert(insert_str, (
                     year, vals[0], vals[1], vals[2], vals[3], vals[4], vals[5], vals[6], vals[7], vals[8], vals[9], geom,)
                 )
+                commit_count += 1
             except UniqueViolation as e:
                 # Record already exists
                 pass
@@ -277,6 +281,9 @@ def insert_records(filename, db_name: str, user: str, host: str, port: str, buck
                 print(e)
                 ic(vals[0], year)
                 raise Exception(e)
+            if commit_count >= 100:
+                conn.commit()
+                commit_count = 0
     try:
         PostgresExecute(
             db_name=db_name, user=user, host=host, port=port,  
@@ -296,6 +303,22 @@ def insert_records(filename, db_name: str, user: str, host: str, port: str, buck
         ic(vals[0], year)
         ic(e)
 
+
+@task(log_stdout=True)
+def vacuum_indexes(db_name: str, user: str, host: str, port: str):
+    PostgresExecute(
+            db_name=db_name, user=user, host=host, port=port,  
+        ).run(
+            query="""ANALYZE climate.noaa_year_averages""", 
+            commit=True,
+            password=PrefectSecret('HEROKU_DB_PW').run())
+    PostgresExecute(
+            db_name=db_name, user=user, host=host, port=port,  
+        ).run(
+            query="""VACUUM ANALYZE climate.noaa_year_averages""", 
+            commit=True,
+            password=PrefectSecret('HEROKU_DB_PW').run())
+           
 
 # IF REGISTERING FOR THE CLOUD, CREATE A LOCAL ENVIRONMENT VARIALBE FOR 'EXECTOR' BEFORE REGISTERING
 coiled_ex = True
@@ -334,6 +357,7 @@ with Flow(name="NOAA Temps: Process CSVs", executor=executor) as flow:
     t5_task = insert_records.map(t4_csv_list, 
         unmapped(db_name), unmapped(user), unmapped(host), unmapped(port), unmapped(bucket_name), unmapped(region_name)
     )
+    t6_task = vacuum_indexes(db_name, user, host, port, wait_for=t5_task)
 
 flow.run_config = LocalRun(working_dir="/home/share/github/1-NOAA-Data-Download-Cleaning-Verification")
 
