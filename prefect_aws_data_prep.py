@@ -43,6 +43,7 @@ from prefect.utilities.edges import unmapped
 from prefect.run_configs.local import LocalRun
 import boto3
 from botocore.exceptions import ClientError
+from botocore.errorfactory import NoSuchKey
 from tqdm import tqdm
 import pandas as pd
 from pandas.errors import EmptyDataError
@@ -101,8 +102,6 @@ def unique_values_spatial_check(filename, data):
             return filename
     except EmptyDataError as e:
         return 'X'
-
-    
 
 
 def column_unique_values_check(column) -> str:
@@ -256,6 +255,8 @@ def process_year_files(files_l: list, region_name: str, bucket_name: str):
                     continue
             except EmptyDataError as e:
                 move_s3_file(spatial_errors, bucket_name, s3_client, note='empty_data_error')
+            except NoSuchKey as e:
+                move_s3_file(spatial_errors, bucket_name, s3_client, note='no_such_key_error')
     print('TASK')
 
 
@@ -266,24 +267,28 @@ def calculate_year_csv(year_folder, bucket_name, region_name, wait_for: str):
     files_l = [x for x in files_l if len(x) > 6]
     columns = 'SITE_NUMBER,LATITUDE,LONGITUDE,ELEVATION,AVERAGE_TEMP,DEWP,STP,MIN,MAX,PRCP\n'
     content = columns
-    for site in tqdm(files_l, desc=year_folder):
-        ic(site)
-        obj = s3_client.get_object(Bucket=bucket_name, Key=site) 
-        data = obj['Body']
-        df1 = pd.read_csv(data)
-        average_temp = df1['TEMP'].mean()
-        average_dewp = df1['DEWP'].mean()
-        average_stp = df1['STP'].mean()
-        average_min = df1['MIN'].mean()
-        average_max = df1['MAX'].mean()
-        average_prcp = df1['PRCP'].mean()
-        site_number = df1['STATION'].unique()
-        latitude = df1['LATITUDE'].unique()
-        longitude = df1['LONGITUDE'].unique()
-        elevation = df1['ELEVATION'].unique()
-        row = f'{site_number},{latitude},{longitude},{elevation},{average_temp},{average_dewp},{average_stp},{average_min},{average_max},{average_prcp}\n'
-        content += row
-    s3_client.put_object(Body=content, Bucket=bucket_name, Key=f'year_average/avg_{year_folder}.csv')
+    try:
+        for site in tqdm(files_l, desc=year_folder):
+            ic(site)
+            obj = s3_client.get_object(Bucket=bucket_name, Key=site) 
+            data = obj['Body']
+            df1 = pd.read_csv(data)
+            average_temp = df1['TEMP'].mean()
+            average_dewp = df1['DEWP'].mean()
+            average_stp = df1['STP'].mean()
+            average_min = df1['MIN'].mean()
+            average_max = df1['MAX'].mean()
+            average_prcp = df1['PRCP'].mean()
+            site_number = df1['STATION'].unique()
+            latitude = df1['LATITUDE'].unique()
+            longitude = df1['LONGITUDE'].unique()
+            elevation = df1['ELEVATION'].unique()
+            row = f'{site_number},{latitude},{longitude},{elevation},{average_temp},{average_dewp},{average_stp},{average_min},{average_max},{average_prcp}\n'
+            content += row
+        s3_client.put_object(Body=content, Bucket=bucket_name, Key=f'year_average/avg_{year_folder}.csv')
+    except EmptyDataError as e:
+        pass
+
 
 
 # IF REGISTERING FOR THE CLOUD, CREATE A LOCAL ENVIRONMENT VARIALBE FOR 'EXECTOR' BEFORE REGISTERING
