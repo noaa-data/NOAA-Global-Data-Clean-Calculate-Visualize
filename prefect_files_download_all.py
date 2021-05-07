@@ -26,9 +26,7 @@
 
 # PyPI
 from prefect import task, Flow, Parameter
-from prefect.schedules import IntervalSchedule
-from prefect.engine.signals import SKIP
-from prefect.executors.dask import DaskExecutor, LocalDaskExecutor
+from prefect.executors.dask import LocalDaskExecutor
 from prefect.run_configs.local import LocalRun
 from bs4 import BeautifulSoup as BS
 import requests
@@ -47,7 +45,6 @@ def find_highest_year(url: str, data_dir):
         return max(year_folders)
     else:
         return 0
-    raise SKIP
 
 
 @task(log_stdout=True)

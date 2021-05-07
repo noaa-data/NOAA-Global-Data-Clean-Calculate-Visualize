@@ -14,14 +14,9 @@
 # DESCRIPTION
 # - Uses requests and bs4 to webscrape a NOAA web page containing temperature data (goes back to 1929)
 #   - Source: https://www.ncei.noaa.gov/data/global-summary-of-the-day/access/
-# - Uses requests to download the files and store them on a local server
-#   - Local files are in the same directory structure as the website (individual site files
-#     stored in directories for each year)
-# - Includes the following features (to assist with handling the download of 538,000 [34gb] csv files):
-#   - Continue Downloading: If the download is interrupted, the script can pick up where it left off
-#   - Find Gaps: If an indidivual file is added to the source for any year, or removed from the server
-#     for any year, the script can quickly scan all data in both locations, find the differences
-#     and download the missing file(s)
+# - Single Purpose: Redownload the entire current year's NOAA temperature data.
+#  - A new record is added to a CSV for each of 11-12 thousand stations nearly everyday. To get the
+#    the new records the files have to be redownloaded in full.
 ##############################################################################
 
 # PyPI
@@ -91,14 +86,14 @@ def combine_and_return_set(new_df, updated_df) -> set:
     return list(set(download_df['filename'].to_list()))
 
 
-@task(log_stdout=True)
-def aws_lists_prep_for_map(file_l: list, list_size: int, wait_for=None) -> List[list]:
-    def chunks(file_l, list_size):
-        """Yield successive n-sized chunks from lst."""
-        for i in range(0, len(file_l), list_size):
-            yield file_l[i:i + list_size]
-    file_l_consolidated = [i for l in file_l for i in l]
-    return list(chunks(file_l_consolidated, list_size))
+# @task(log_stdout=True)
+# def aws_lists_prep_for_map(file_l: list, list_size: int, wait_for=None) -> List[list]:
+#     def chunks(file_l, list_size):
+#         """Yield successive n-sized chunks from lst."""
+#         for i in range(0, len(file_l), list_size):
+#             yield file_l[i:i + list_size]
+#     file_l_consolidated = [i for l in file_l for i in l]
+#     return list(chunks(file_l_consolidated, list_size))
 
 
 @task(log_stdout=True, max_retries=5, retry_delay=timedelta(seconds=5))
