@@ -1,7 +1,5 @@
 # PyPI
 from prefect import task, Flow, Parameter
-from prefect.utilities.edges import unmapped
-from prefect.executors.dask import DaskExecutor, LocalDaskExecutor
 from prefect.run_configs.local import LocalRun
 from bs4 import BeautifulSoup as BS
 import requests
@@ -68,12 +66,13 @@ def combine_and_return_set(new_df, updated_df) -> set:
 
 
 @task(log_stdout=True)
-def lists_prep_for_map(file_l: list, list_size: int, wait_for=None) -> List[list]:
-    list_l = []
-    for i in range(0, len(file_l), list_size):
-        x = i
-        list_l.append(file_l[x:x+list_size])
-    return(list_l)
+def aws_lists_prep_for_map(file_l: list, list_size: int, wait_for=None) -> List[list]:
+    def chunks(file_l, list_size):
+        """Yield successive n-sized chunks from lst."""
+        for i in range(0, len(file_l), list_size):
+            yield file_l[i:i + list_size]
+    file_l_consolidated = [i for l in file_l for i in l]
+    return list(chunks(file_l_consolidated, list_size))
 
 
 @task(log_stdout=True)
@@ -98,30 +97,21 @@ def download_new_csvs(url: str, year: str, diff_set: set, data_dir: str, dwnld_c
     if count <= dwnld_count:
         return True
 
-executor = LocalDaskExecutor(scheduler="threads", num_workers=8)
 
-with Flow('NOAA files: Update Year', executor=executor) as flow:
+with Flow('NOAA files: Update Year') as flow:
     year = Parameter('year', default=date.today().year)
     base_url = Parameter('base_url', default='https://www.ncei.noaa.gov/data/global-summary-of-the-day/access/')
     data_dir = Parameter('data_dir', default=str(Path('/media/share/store_240a/data_downloads/noaa_daily_avg_temps')))
     # data_dir = Parameter('data_dir', default=str(Path('/mnt/c/Users/benha/data_downloads/noaa_global_temps')))
-    dwnld_count = Parameter('dwnld_count', default=os.environ.get('PREFECT_COUNT') or 20000)
-    map_list_size = Parameter('MAP_LIST_SIZE', default=500)
+    dwnld_count = Parameter('dwnld_count', default=os.environ.get('PREFECT_COUNT') or 10000)
 
     t1_url  = build_url(base_url=base_url, year=year)
     t2_cloud = cloud_csvs_and_timestamps(url=t1_url)
     t3_local = local_csvs_and_timestamps(data_dir=data_dir, year=year)
     t4_new = find_difference(cloud_df=t2_cloud, local_df=t3_local)
     t5_updates = find_updated_files(cloud_df=t2_cloud, local_df=t3_local)
-    t6_file_l = combine_and_return_set(new_df=t4_new, updated_df=t5_updates)
-    t7_download_l = lists_prep_for_map(t6_file_l, map_list_size)
-    t8_task = download_new_csvs.map(
-        url=unmapped(t1_url), 
-        year=unmapped(year), 
-        diff_set=t7_download_l, 
-        data_dir=unmapped(data_dir), 
-        dwnld_count=unmapped(dwnld_count)
-    )
+    t6_dwnload = combine_and_return_set(new_df=t4_new, updated_df=t5_updates)
+    t7_task = download_new_csvs(url=t1_url, year=year, diff_set=t6_dwnload, data_dir=data_dir, dwnld_count=dwnld_count)
 
 flow.run_config = LocalRun(working_dir="/home/share/github/1-NOAA-Data-Download-Cleaning-Verification/")
 
