@@ -224,6 +224,7 @@ def aws_lists_prep_for_map(file_l: list, list_size: int, wait_for=None) -> List[
 
 @task(log_stdout=True, max_retries=5, retry_delay=timedelta(seconds=5))
 def process_year_files(files_l: list, region_name: str, bucket_name: str):
+    ic(files_l)
     s3_client = initialize_s3_client(region_name)
     for filename in tqdm(files_l):
         if len(filename) <= 5:
@@ -262,6 +263,7 @@ def calculate_year_csv(year_folder, bucket_name, region_name, wait_for: str):
     columns = 'SITE_NUMBER,LATITUDE,LONGITUDE,ELEVATION,AVERAGE_TEMP,DEWP,STP,MIN,MAX,PRCP\n'
     content = columns
     for site in tqdm(files_l, desc=year_folder):
+        ic(site)
         obj = s3_client.get_object(Bucket=bucket_name, Key=site) 
         data = obj['Body']
         df1 = pd.read_csv(data)

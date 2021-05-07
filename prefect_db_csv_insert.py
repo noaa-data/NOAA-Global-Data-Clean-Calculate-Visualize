@@ -218,6 +218,7 @@ def select_session_csvs(
 
 @task(log_stdout=True)
 def insert_records(filename, db_name: str, user: str, host: str, port: str, bucket_name, region_name):
+    ic(filename)
     year = filename.strip('year_average/avg_')
     year = year.strip('.csv')
     # Retrieve file data from AWS S3
