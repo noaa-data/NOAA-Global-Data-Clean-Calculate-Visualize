@@ -103,7 +103,7 @@ def aws_load_files_year(
     for csv_file in tqdm(files_l, desc=f'{year} | local: {local_count} | cloud: {cloud_count}'):
         result = s3_upload_file(
             s3_client=s3_client,
-            file_name=str(local_dir / year / csv_file), 
+            file_name=str(Path(local_dir) / year / csv_file), 
             bucket=bucket, 
             object_name=f'{year}/{csv_file}'
         )
