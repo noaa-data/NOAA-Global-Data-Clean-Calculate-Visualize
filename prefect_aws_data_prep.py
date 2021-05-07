@@ -135,19 +135,23 @@ def move_s3_file(
     s3_client: boto3.client,
     note: str
 ):
-    # create bucket object
-    s3_resource = boto3.resource('s3')
-    bucket = s3_resource.Bucket(bucket_name)
-    # ensure data error folder exists
-    s3_client.put_object(Bucket=bucket_name, Body='', Key=f'_data_error/')
-    # ensure year folder exists
-    # s3_client.put_object(Bucket=bucket_name, Body='', Key=f'_data_errors/{filename.split("/")[0]}/')
-    # Copy object A as object B
-    year, file_ = filename.split('/')
-    number = file_.split('.')[0]
-    copy_source = {'Bucket': bucket_name, 'Key': filename}
-    bucket.copy(copy_source, f'_data_error/{year}-{number}-{note}.csv')
-    # Delete object A
+    try:
+        # create bucket object
+        s3_resource = boto3.resource('s3')
+        bucket = s3_resource.Bucket(bucket_name)
+        # ensure data error folder exists
+        s3_client.put_object(Bucket=bucket_name, Body='', Key=f'_data_error/')
+        # ensure year folder exists
+        # s3_client.put_object(Bucket=bucket_name, Body='', Key=f'_data_errors/{filename.split("/")[0]}/')
+        # Copy object A as object B
+        year, file_ = filename.split('/')
+        number = file_.split('.')[0]
+        copy_source = {'Bucket': bucket_name, 'Key': filename}
+        bucket.copy(copy_source, f'_data_error/{year}-{number}-{note}.csv')
+        # Delete object A
+    except ValueError as e:
+        if 'not enough values to unpack' not in str(e):
+            raise ValueError(e)
     s3_resource.Object(bucket_name, filename).delete()
 
 

@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS climate.noaa_year_averages (
   CONSTRAINT noaa_year_averages_pkey PRIMARY KEY (year, station)
 ) USING HEAP;
 
-SELECT AddGeometryColumn('','climate.noaa_year_averages','geom','4326','POINT', 2);
+SELECT AddGeometryColumn('climate','noaa_year_averages','geom','4326','POINT', 2);
 
 create index noaa_year_averages_year_idx on climate.noaa_year_averages (year);
 

@@ -30,3 +30,26 @@ ogr2ogr -f "PostgreSQL" PG:"host=ec2-3-231-241-17.compute-1.amazonaws.com user=z
 ### Reference Material
 - OGR2OGR Cheat Sheet: http://www.bostongis.com/PrinterFriendly.aspx?content_name=ogr_cheatsheet
 - Install GDAL (used Conda): https://ljvmiranda921.github.io/notebook/2019/04/13/install-gdal/#using-conda
+
+## Indexes and Spatial Indexes
+- Reference https://postgis.net/workshops/postgis-intro/indexing.html
+- Code used to create and refresh indexes:
+```sql
+create index noaa_year_averages_year_idx on climate.noaa_year_averages (year);
+
+CREATE INDEX noaa_year_averages_geom_idx
+  ON climate.noaa_year_averages
+  USING GIST (geom);
+
+ANALYZE climate.noaa_year_averages;
+VACUUM ANALYZE climate.noaa_year_averages;
+
+create index countries_name_idx on climate.countries (name);
+
+CREATE INDEX countries_geom_idx
+  ON climate.countries
+  USING GIST (wkb_geometry);
+
+ANALYZE climate.countries;
+VACUUM ANALYZE climate.countries;
+```
