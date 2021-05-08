@@ -192,8 +192,8 @@ def fetch_aws_folders(region_name, bucket_name):
     folder_list = [x.split('/')[0] for x in folder_list]
     # ic(folder_list)
     folder_list = [x for x in folder_list if x != '']
-    return sorted(folder_list)
-    #return ['2016', '2017', '2018', '2019', '2020', '2021']
+    #return sorted(folder_list)
+    return ['2021']
 
 
 @task(log_stdout=True, max_retries=5, retry_delay=timedelta(seconds=5))
@@ -226,7 +226,7 @@ def aws_lists_prep_for_map(file_l: list, list_size: int, wait_for=None) -> List[
 
 @task(log_stdout=True, max_retries=5, retry_delay=timedelta(seconds=5))
 def process_year_files(files_l: list, region_name: str, bucket_name: str):
-    ic(files_l)
+    # ic(files_l)
     s3_client = initialize_s3_client(region_name)
     s3 = boto3.resource('s3')
     for filename in tqdm(files_l):
@@ -292,7 +292,7 @@ def calculate_year_csv(year_folder, bucket_name, region_name, wait_for: str):
 
 
 # IF REGISTERING FOR THE CLOUD, CREATE A LOCAL ENVIRONMENT VARIALBE FOR 'EXECTOR' BEFORE REGISTERING
-coiled_ex = True
+coiled_ex = False
 if coiled_ex == True:
     print("Coiled")
     coiled.create_software_environment(

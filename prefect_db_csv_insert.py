@@ -254,55 +254,54 @@ def insert_records(filename, db_name: str, user: str, host: str, port: str, buck
             latitude = df_if_two_one(latitude)
             longitude = vals[2]
             longitude = df_if_two_one(longitude)
-            if latitude == 'nan' and longitude == 'nan':
-                continue
-            try:
-                cursor = conn.cursor()
-                val = cursor.callproc('ST_GeomFromText', ((f'POINT({latitude} {longitude})'), 4326))
-                geom = cursor.fetchone()[0]
-                insert_str="""
-                    insert into climate.noaa_year_averages 
-                        (year, station, latitude, longitude, elevation, temp, dewp, stp, max, min, prcp, geom)
-                    values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """
-                conn.execute_insert(insert_str, (
-                    year, vals[0], vals[1], vals[2], vals[3], vals[4], vals[5], vals[6], vals[7], vals[8], vals[9], geom,)
-                )
-                commit_count += 1
-            except UniqueViolation as e:
-                # Record already exists
-                pass
-            except InFailedSqlTransaction as e:
-                # Record exists, so transaction with "geom" is removed
-                pass
-            except Exception as e:
-                if 'parse error - invalid geometry' in str(e):
-                    # Error in spatial data
-                    ic(latitude, longitude)
-                print(e)
-                ic(vals[0], year)
-                raise Exception(e)
-            if commit_count >= 100:
-                conn.commit()
-                commit_count = 0
-    try:
-        PostgresExecute(
-            db_name=db_name, user=user, host=host, port=port,  
-        ).run(
-            query="""
-            insert into climate.csv_checker 
-                (year, date_create, date_update)
-            values (%s, CURRENT_DATE, CURRENT_DATE)
-            """, 
-            data=(year,),
-            commit=True,
-            password=PrefectSecret('HEROKU_DB_PW').run()
-        )
-    except UniqueViolation:
-        pass
-    except TypeError as e:
-        ic(vals[0], year)
-        ic(e)
+            if latitude != 'nan' and longitude != 'nan':
+                try:
+                    cursor = conn.cursor()
+                    val = cursor.callproc('ST_GeomFromText', ((f'POINT({latitude} {longitude})'), 4326))
+                    geom = cursor.fetchone()[0]
+                    insert_str="""
+                        insert into climate.noaa_year_averages 
+                            (year, station, latitude, longitude, elevation, temp, dewp, stp, max, min, prcp, geom)
+                        values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """
+                    conn.execute_insert(insert_str, (
+                        year, vals[0], vals[1], vals[2], vals[3], vals[4], vals[5], vals[6], vals[7], vals[8], vals[9], geom,)
+                    )
+                    commit_count += 1
+                except UniqueViolation as e:
+                    # Record already exists
+                    pass
+                except InFailedSqlTransaction as e:
+                    # Record exists, so transaction with "geom" is removed
+                    pass
+                except Exception as e:
+                    if 'parse error - invalid geometry' in str(e):
+                        # Error in spatial data
+                        ic(latitude, longitude)
+                    print(e)
+                    ic(vals[0], year)
+                    raise Exception(e)
+                if commit_count >= 100:
+                    conn.commit()
+                    commit_count = 0
+                try:
+                    PostgresExecute(
+                        db_name=db_name, user=user, host=host, port=port,  
+                    ).run(
+                        query="""
+                        insert into climate.csv_checker 
+                            (year, date_create, date_update)
+                        values (%s, CURRENT_DATE, CURRENT_DATE)
+                        """, 
+                        data=(year,),
+                        commit=True,
+                        password=PrefectSecret('HEROKU_DB_PW').run()
+                    )
+                except UniqueViolation:
+                    pass
+                except TypeError as e:
+                    ic(vals[0], year)
+                    ic(e)
            
 
 # IF REGISTERING FOR THE CLOUD, CREATE A LOCAL ENVIRONMENT VARIALBE FOR 'EXECTOR' BEFORE REGISTERING
