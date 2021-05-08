@@ -307,7 +307,7 @@ if coiled_ex == True:
             "name": "NOAA-temperature-data-clean",
             "software": "darrida/noaa-temperature-data-clean",
             "worker_cpu": 2,
-            "n_workers": 10,
+            "n_workers": 8,
             "worker_memory":"16 GiB",
             "scheduler_memory": "16 GiB",
         },
