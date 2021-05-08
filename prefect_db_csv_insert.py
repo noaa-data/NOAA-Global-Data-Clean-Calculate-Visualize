@@ -212,8 +212,8 @@ def select_session_csvs(
 
     # SET DIFF, SORT
     diff_list = [x for x in aws_files if x.split('_')[1] not in db_years]
-    # return (sorted(diff_list))
-    return ['year_average/avg_2021.csv']
+    return (sorted(diff_list))
+    # return ['year_average/avg_2021.csv']
 
 
 @task(log_stdout=True)
@@ -303,22 +303,6 @@ def insert_records(filename, db_name: str, user: str, host: str, port: str, buck
     except TypeError as e:
         ic(vals[0], year)
         ic(e)
-
-
-@task(log_stdout=True)
-def vacuum_indexes(db_name: str, user: str, host: str, port: str, wait_for: bool):
-    PostgresExecute(
-            db_name=db_name, user=user, host=host, port=port,  
-        ).run(
-            query="""ANALYZE climate.noaa_year_averages""", 
-            commit=True,
-            password=PrefectSecret('HEROKU_DB_PW').run())
-    PostgresExecute(
-            db_name=db_name, user=user, host=host, port=port,  
-        ).run(
-            query="""VACUUM ANALYZE climate.noaa_year_averages""", 
-            commit=True,
-            password=PrefectSecret('HEROKU_DB_PW').run())
            
 
 # IF REGISTERING FOR THE CLOUD, CREATE A LOCAL ENVIRONMENT VARIALBE FOR 'EXECTOR' BEFORE REGISTERING
@@ -326,7 +310,7 @@ coiled_ex = True
 if coiled_ex == True:
     print("Coiled")
     coiled.create_software_environment(
-        name="NOAA-temperature-data-clean",
+        name="NOAA-temperature-db-insert",
         pip="requirements.txt"
     )
     executor = DaskExecutor(
@@ -334,8 +318,8 @@ if coiled_ex == True:
         cluster_class=coiled.Cluster,
         cluster_kwargs={
             "shutdown_on_close": True,
-            "name": "NOAA-temperature-data-clean",
-            "software": "darrida/noaa-temperature-data-clean",
+            "name": "NOAA-temperature-db-insert",
+            "software": "darrida/noaa-temperature-db-insert",
             "worker_cpu": 4,
             "n_workers": 3,
             "worker_memory":"16 GiB",
@@ -358,7 +342,7 @@ with Flow(name="NOAA Temps: DB Insert Records", executor=executor) as flow:
     t5_task = insert_records.map(t4_csv_list, 
         unmapped(db_name), unmapped(user), unmapped(host), unmapped(port), unmapped(bucket_name), unmapped(region_name)
     )
-    t6_task = vacuum_indexes(db_name, user, host, port, wait_for=t5_task)
+
 
 flow.run_config = LocalRun(working_dir="/home/share/github/1-NOAA-Data-Download-Cleaning-Verification")
 
