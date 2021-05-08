@@ -43,12 +43,17 @@ CREATE INDEX countries_geom_idx
 ANALYZE climate.countries;
 VACUUM ANALYZE climate.countries;
 
+-- QUERY SITES THE JOIN LOCATES THE POLYGON IDENTIFIED AS THE USA
 select * 
 from climate.noaa_year_averages t1
 join climate.countries c1
 on st_contains(c1.wkb_geometry, t1.geom)
 where c1.geounit = 'United States of America';
 
-select *
-from climate.countries c1
-where c1.name = 'United States';
+-- QUERY NUMBER OF SITES THE JOIN LOCATES IN DIFFERENT POLYGONS
+select count(t1.station), c1.name 
+from climate.noaa_year_averages t1
+join climate.countries c1
+on st_contains(c1.wkb_geometry, t1.geom)
+where t1.year = 1995
+group by c1.name;
