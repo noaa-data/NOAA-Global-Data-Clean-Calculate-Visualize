@@ -43,7 +43,6 @@ from prefect.utilities.edges import unmapped
 from prefect.run_configs.local import LocalRun
 import boto3
 from botocore.exceptions import ClientError
-from botocore.errorfactory import NoSuchKey
 from tqdm import tqdm
 import pandas as pd
 from pandas.errors import EmptyDataError
@@ -229,6 +228,7 @@ def aws_lists_prep_for_map(file_l: list, list_size: int, wait_for=None) -> List[
 def process_year_files(files_l: list, region_name: str, bucket_name: str):
     ic(files_l)
     s3_client = initialize_s3_client(region_name)
+    s3 = boto3.resource('s3')
     for filename in tqdm(files_l):
         if len(filename) <= 5:
             continue
@@ -255,7 +255,7 @@ def process_year_files(files_l: list, region_name: str, bucket_name: str):
                     continue
             except EmptyDataError as e:
                 move_s3_file(spatial_errors, bucket_name, s3_client, note='empty_data_error')
-            except NoSuchKey as e:
+            except s3.meta.client.exceptions.NoSuchKey as e:
                 move_s3_file(spatial_errors, bucket_name, s3_client, note='no_such_key_error')
     print('TASK')
 
@@ -306,8 +306,8 @@ if coiled_ex == True:
             "shutdown_on_close": True,
             "name": "NOAA-temperature-data-clean",
             "software": "darrida/noaa-temperature-data-clean",
-            "worker_cpu": 4,
-            "n_workers": 8,
+            "worker_cpu": 2,
+            "n_workers": 12,
             "worker_memory":"16 GiB",
             "scheduler_memory": "16 GiB",
         },
@@ -319,7 +319,7 @@ else:
 with Flow(name="NOAA files: clean and calc averages", executor=executor) as flow:
     region_name = Parameter('REGION_NAME', default='us-east-1')
     bucket_name = Parameter('BUCKET_NAME', default='noaa-temperature-data')
-    map_list_size = Parameter('MAP_LIST_SIZE', default=500)
+    map_list_size = Parameter('MAP_LIST_SIZE', default=1000)
     t1_aws_years = fetch_aws_folders(region_name, bucket_name)
     t2_all_files = aws_all_year_files.map(t1_aws_years, unmapped(bucket_name), unmapped(region_name))
     t3_map_prep_l = aws_lists_prep_for_map(t2_all_files, map_list_size)
