@@ -81,6 +81,8 @@ def df_if_two_one(value):
     
     Returns: str
     """
+    if value == '':
+        return value
     split = value.split(' ')
     if len(split) > 1:
         if '.' in split[0]:
@@ -127,8 +129,7 @@ class database:
                 str(e)
                 != "'database' object has no attribute '_database__db_connection'"
             ):
-                raise AttributeError(e)
-            
+                raise AttributeError(e)    
 
     def __exit__(self, ext_type, exc_value, traceback):
         if isinstance(exc_value, Exception) or ext_type is not None:
@@ -265,7 +266,7 @@ def insert_records(filename, db_name: str, user: str, host: str, port: str, buck
             latitude = df_if_two_one(latitude)
             longitude = vals[2]
             longitude = df_if_two_one(longitude)
-            if latitude != 'nan' and longitude != 'nan':
+            if latitude not in ('nan', '') and longitude not in ('nan', ''):
                 try:
                     cursor = conn.cursor()
                     val = cursor.callproc('ST_GeomFromText', ((f'POINT({longitude} {latitude})'), 4326))
