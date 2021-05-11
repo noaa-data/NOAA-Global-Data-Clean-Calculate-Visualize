@@ -309,7 +309,7 @@ def insert_records(filename, db_name: str, user: str, host: str, port: str, buck
            
 
 # IF REGISTERING FOR THE CLOUD, CREATE A LOCAL ENVIRONMENT VARIALBE FOR 'EXECTOR' BEFORE REGISTERING
-coiled_ex = True
+coiled_ex = False
 if coiled_ex == True:
     print("Coiled")
     coiled.create_software_environment(
@@ -330,7 +330,7 @@ if coiled_ex == True:
         },
     )
 else:
-    executor=LocalDaskExecutor(scheduler="threads", num_workers=15)
+    executor=LocalDaskExecutor(scheduler="threads", num_workers=12)
 
 
 with Flow(name="NOAA Temps: DB Insert Records", executor=executor) as flow:
