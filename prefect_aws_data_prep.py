@@ -193,7 +193,7 @@ def fetch_aws_folders(region_name, bucket_name):
     # ic(folder_list)
     folder_list = [x for x in folder_list if x != '']
     #return sorted(folder_list)
-    return ['2021']
+    return ['2020', '2021']
 
 
 @task(log_stdout=True, max_retries=5, retry_delay=timedelta(seconds=5))
@@ -221,7 +221,9 @@ def aws_lists_prep_for_map(file_l: list, list_size: int, wait_for=None) -> List[
         for i in range(0, len(file_l), list_size):
             yield file_l[i:i + list_size]
     file_l_consolidated = [i for l in file_l for i in l]
-    return list(chunks(file_l_consolidated, list_size))
+    file_l_consolidated = list(chunks(file_l_consolidated, list_size))
+    ic(len(file_l_consolidated))
+    return file_l_consolidated
 
 
 @task(log_stdout=True, max_retries=5, retry_delay=timedelta(seconds=5))
@@ -269,7 +271,7 @@ def calculate_year_csv(year_folder, bucket_name, region_name, wait_for: str):
     content = columns
     try:
         for site in tqdm(files_l, desc=year_folder):
-            ic(site)
+            # ic(site)
             obj = s3_client.get_object(Bucket=bucket_name, Key=site) 
             data = obj['Body']
             df1 = pd.read_csv(data)
@@ -313,7 +315,7 @@ if coiled_ex == True:
         },
     )
 else:
-    executor=LocalDaskExecutor(scheduler="threads", num_workers=7)
+    executor=LocalDaskExecutor(scheduler="threads", num_workers=6)
         
 
 with Flow(name="NOAA files: clean and calc averages", executor=executor) as flow:
