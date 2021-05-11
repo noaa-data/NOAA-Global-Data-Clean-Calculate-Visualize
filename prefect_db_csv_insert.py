@@ -188,6 +188,7 @@ def aws_auth_envs(aws_access_key_id, aws_access_secret_key):
 
 @task(log_stdout=True, max_retries=5, retry_delay=timedelta(seconds=5))
 def aws_all_year_files(bucket_name: str, region_name: str, wait_for=None):
+    print(wait_for)
     s3_client = initialize_s3_client(region_name)
     aws_file_set = set()
     paginator = s3_client.get_paginator('list_objects_v2')
