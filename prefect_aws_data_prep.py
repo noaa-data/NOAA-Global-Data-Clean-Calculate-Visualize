@@ -39,7 +39,7 @@ import prefect
 from prefect import task, Flow, Parameter
 # from prefect.engine.executors.dask import DaskExecutor, LocalDaskExecutor
 from prefect.executors.dask import DaskExecutor, LocalDaskExecutor
-from prefect.utilities.edges import unmapped
+from prefect.utilities.edges import unmapped, mapped
 from prefect.run_configs.local import LocalRun
 import boto3
 from botocore.exceptions import ClientError
@@ -192,8 +192,8 @@ def fetch_aws_folders(region_name, bucket_name):
     folder_list = [x.split('/')[0] for x in folder_list]
     # ic(folder_list)
     folder_list = [x for x in folder_list if x != '']
-    #return sorted(folder_list)
-    return ['2020', '2021']
+    return sorted(folder_list)
+    #return ['2021']
 
 
 @task(log_stdout=True, max_retries=5, retry_delay=timedelta(seconds=5))
@@ -210,7 +210,7 @@ def aws_all_year_files(year: list, bucket_name: str, region_name: str, wait_for=
         file_l = [x['Key'] for x in list_all_keys]
         for f in file_l:
             aws_file_set.add(f)
-        break
+        # break
     return list(sorted(aws_file_set))
 
 
@@ -294,7 +294,7 @@ def calculate_year_csv(year_folder, bucket_name, region_name, wait_for: str):
 
 
 # IF REGISTERING FOR THE CLOUD, CREATE A LOCAL ENVIRONMENT VARIALBE FOR 'EXECTOR' BEFORE REGISTERING
-coiled_ex = False
+coiled_ex = True
 if coiled_ex == True:
     print("Coiled")
     coiled.create_software_environment(
@@ -308,14 +308,14 @@ if coiled_ex == True:
             "shutdown_on_close": True,
             "name": "NOAA-temperature-data-clean",
             "software": "darrida/noaa-temperature-data-clean",
-            "worker_cpu": 2,
-            "n_workers": 8,
+            "worker_cpu": 9,
+            "n_workers": 9,
             "worker_memory":"16 GiB",
             "scheduler_memory": "16 GiB",
         },
     )
 else:
-    executor=LocalDaskExecutor(scheduler="threads", num_workers=6)
+    executor=LocalDaskExecutor(scheduler="threads", num_workers=5)
         
 
 with Flow(name="NOAA files: clean and calc averages", executor=executor) as flow:
@@ -325,9 +325,9 @@ with Flow(name="NOAA files: clean and calc averages", executor=executor) as flow
     t1_aws_years = fetch_aws_folders(region_name, bucket_name)
     t2_all_files = aws_all_year_files.map(t1_aws_years, unmapped(bucket_name), unmapped(region_name))
     t3_map_prep_l = aws_lists_prep_for_map(t2_all_files, map_list_size)
-    t4_clean_complete = process_year_files.map(t3_map_prep_l, unmapped(region_name), unmapped(bucket_name))
+    t4_clean_complete = process_year_files.map(mapped(t3_map_prep_l), unmapped(region_name), unmapped(bucket_name))
     t5_calc_complete = calculate_year_csv.map(
-        t1_aws_years, unmapped(bucket_name), unmapped(region_name), wait_for=t4_clean_complete
+        mapped(t1_aws_years), unmapped(bucket_name), unmapped(region_name), wait_for=t4_clean_complete
     )
 
 flow.run_config = LocalRun(working_dir="/home/share/github/1-NOAA-Data-Download-Cleaning-Verification")

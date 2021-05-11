@@ -75,6 +75,9 @@ def df_if_two_one(value):
             part of the way through a year.
           - Function converts both to integers, which rounds up to the nearest whole number. If both
             whole numbers are equal, then the function returns the first value from the original pair.
+    - exception handler:
+      - ValueError -> str of '': Looks like some empty strings for latitude and/or longitude slipped
+        through data cleaning. This handles those.
 
     Args:
         value (str): value to check and clean if needed
