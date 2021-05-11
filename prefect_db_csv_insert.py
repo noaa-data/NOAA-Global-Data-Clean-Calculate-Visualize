@@ -350,7 +350,7 @@ with Flow(name="NOAA Temps: DB Insert Records", executor=executor) as flow:
 flow.run_config = LocalRun(
     working_dir="/home/share/github/1-NOAA-Data-Download-Cleaning-Verification",
     env={
-        "AWS_ACCESS_KEY_ID ": PrefectSecret('AWS_ACCESS_KEY_ID').run(),
+        "AWS_ACCESS_KEY_ID": PrefectSecret('AWS_ACCESS_KEY_ID').run(),
         "AWS_SECRET_ACCESS_KEY ": PrefectSecret('AWS_SECRET_ACCESS_KEY').run()
     }
 )
