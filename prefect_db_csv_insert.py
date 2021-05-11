@@ -212,8 +212,16 @@ def select_session_csvs(
         """
     ).run(password=PrefectSecret('HEROKU_DB_PW').run())
 
+    # print(db_years)
+    db_years = [f'avg_{x[0]}.csv' for x in db_years]
+    # print(db_years)
+    # print(aws_files)
+    # print([x.split('/')[1] for x in aws_files])
+
+    print(len(aws_files))
     # SET DIFF, SORT
-    diff_list = [x for x in aws_files if x.split('_')[1] not in db_years]
+    diff_list = [x for x in aws_files if x.split('/')[1] not in db_years]
+    print(len(diff_list))
     return (sorted(diff_list))
     # return ['year_average/avg_2021.csv']
 
