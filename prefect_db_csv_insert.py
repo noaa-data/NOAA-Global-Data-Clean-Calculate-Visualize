@@ -330,7 +330,7 @@ if coiled_ex == True:
         },
     )
 else:
-    executor=LocalDaskExecutor(scheduler="threads", num_workers=6)
+    executor=LocalDaskExecutor(scheduler="threads", num_workers=8)
 
 
 with Flow(name="NOAA Temps: DB Insert Records", executor=executor) as flow:
