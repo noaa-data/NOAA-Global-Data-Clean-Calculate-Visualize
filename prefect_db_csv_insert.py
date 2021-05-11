@@ -221,7 +221,9 @@ def select_session_csvs(
 
 
 @task(log_stdout=True)
-def insert_records(filename, db_name: str, user: str, host: str, port: str, bucket_name, region_name):
+def insert_records(
+    filename, db_name: str, user: str, host: str, port: str, bucket_name: str, region_name: str
+):
     ic(filename)
     year = filename.strip('year_average/avg_')
     year = year.strip('.csv')
@@ -347,7 +349,13 @@ with Flow(name="NOAA Temps: DB Insert Records", executor=executor) as flow:
     )
 
 
-flow.run_config = LocalRun(working_dir="/home/share/github/1-NOAA-Data-Download-Cleaning-Verification")
+flow.run_config = LocalRun(
+    working_dir="/home/share/github/1-NOAA-Data-Download-Cleaning-Verification",
+    env={
+        "AWS_ACCESS_KEY_ID ": PrefectSecret('AWS_ACCESS_KEY_ID').run(),
+        "AWS_SECRET_ACCESS_KEY ": PrefectSecret('AWS_SECRET_ACCESS_KEY').run()
+    }
+)
 
 if __name__ == '__main__':
     state = flow.run()
