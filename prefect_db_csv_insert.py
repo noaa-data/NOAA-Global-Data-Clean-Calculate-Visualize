@@ -81,16 +81,19 @@ def df_if_two_one(value):
     
     Returns: str
     """
-    if value == '':
-        return value
-    split = value.split(' ')
-    if len(split) > 1:
-        if '.' in split[0]:
-            if int(float(split[0])) == int(float(split[1])):
+    try:
+        split = value.split(' ')
+        if len(split) > 1:
+            if '.' in split[0]:
+                if int(float(split[0])) == int(float(split[1])):
+                    return split[0]
+            elif split[0] == split[1]:
                 return split[0]
-        elif split[0] == split[1]:
-            return split[0]
-    return value
+        return value
+    except ValueError as e:
+        if "could not convert string to float: ''" not in str(e):
+            raise ValueError(e)
+        return value
 
 
 class database:
