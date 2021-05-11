@@ -113,6 +113,7 @@ class database:
                 sys.exit()
             raise psycopg2.OperationalError(e)
         except psycopg2.Error as e:
+            self.__db_connection.close()
             exit()
 
     def __enter__(self):
@@ -142,16 +143,19 @@ class database:
                 cursor.execute(sql, params)
                 return True
             cursor.execute(sql)
+            self.__db_connection.close()
             return True
         except SyntaxError as e:
             self.rollback()
             traceback.print_exc()
+            self.__db_connection.close()
             sys.exit()
         except InFailedSqlTransaction as e:
             self.rollback()
             if not str(e).startswith("current transaction is aborted"):
                 raise InFailedSqlTransaction(e)
             traceback.print_exc()
+            self.__db_connection.close()
             sys.exit()
 
     def execute_query(self, sql: str, params=None):
@@ -268,11 +272,14 @@ def insert_records(filename, db_name: str, user: str, host: str, port: str, buck
                         year, vals[0], vals[1], vals[2], vals[3], vals[4], vals[5], vals[6], vals[7], vals[8], vals[9], geom,)
                     )
                     commit_count += 1
+                    conn.close()
                 except UniqueViolation as e:
                     # Record already exists
+                    conn.close()
                     pass
                 except InFailedSqlTransaction as e:
                     # Record exists, so transaction with "geom" is removed
+                    conn.close()
                     pass
                 except Exception as e:
                     if 'parse error - invalid geometry' in str(e):
@@ -280,6 +287,7 @@ def insert_records(filename, db_name: str, user: str, host: str, port: str, buck
                         ic(latitude, longitude)
                     print(e)
                     ic(vals[0], year)
+                    conn.close()
                     raise Exception(e)
                 if commit_count >= 100:
                     conn.commit()
@@ -316,7 +324,7 @@ if coiled_ex == True:
         debug=True,
         cluster_class=coiled.Cluster,
         cluster_kwargs={
-            "shutdown_on_close": True,
+            "shutdown_on_close": False,
             "name": "NOAA-temperature-db-insert",
             "software": "darrida/noaa-temperature-db-insert",
             "worker_cpu": 4,
