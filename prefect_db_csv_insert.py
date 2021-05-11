@@ -36,6 +36,7 @@ sys.settrace
 from datetime import timedelta
 import os
 import traceback
+import time
 
 # PyPI
 import coiled
@@ -244,6 +245,7 @@ def insert_records(filename, db_name: str, user: str, host: str, port: str, buck
         "port": port,
     }
 
+    time.sleep(10)
     with database(**conn_info) as conn:
         commit_count = 0
         for i in tqdm(csv_df.index):
