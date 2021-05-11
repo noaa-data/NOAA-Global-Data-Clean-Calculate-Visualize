@@ -295,24 +295,24 @@ def insert_records(filename, db_name: str, user: str, host: str, port: str, buck
                 if commit_count >= 100:
                     conn.commit()
                     commit_count = 0
-                try:
-                    PostgresExecute(
-                        db_name=db_name, user=user, host=host, port=port,  
-                    ).run(
-                        query="""
-                        insert into climate.csv_checker 
-                            (year, date_create, date_update)
-                        values (%s, CURRENT_DATE, CURRENT_DATE)
-                        """, 
-                        data=(year,),
-                        commit=True,
-                        password=PrefectSecret('HEROKU_DB_PW').run()
-                    )
-                except UniqueViolation:
-                    pass
-                except TypeError as e:
-                    ic(vals[0], year)
-                    ic(e)
+    try:
+        PostgresExecute(
+            db_name=db_name, user=user, host=host, port=port,  
+        ).run(
+            query="""
+            insert into climate.csv_checker 
+                (year, date_create, date_update)
+            values (%s, CURRENT_DATE, CURRENT_DATE)
+            """, 
+            data=(year,),
+            commit=True,
+            password=PrefectSecret('HEROKU_DB_PW').run()
+        )
+    except UniqueViolation:
+        pass
+    except TypeError as e:
+        ic(vals[0], year)
+        ic(e)
     return
            
 
