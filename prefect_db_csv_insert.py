@@ -36,6 +36,7 @@ sys.settrace
 from datetime import timedelta
 import os
 import traceback
+import time
 
 # PyPI
 import coiled
@@ -113,7 +114,6 @@ class database:
                 sys.exit()
             raise psycopg2.OperationalError(e)
         except psycopg2.Error as e:
-            self.__db_connection.close()
             exit()
 
     def __enter__(self):
@@ -128,6 +128,7 @@ class database:
                 != "'database' object has no attribute '_database__db_connection'"
             ):
                 raise AttributeError(e)
+            
 
     def __exit__(self, ext_type, exc_value, traceback):
         if isinstance(exc_value, Exception) or ext_type is not None:
@@ -143,19 +144,16 @@ class database:
                 cursor.execute(sql, params)
                 return True
             cursor.execute(sql)
-            self.__db_connection.close()
             return True
         except SyntaxError as e:
             self.rollback()
             traceback.print_exc()
-            self.__db_connection.close()
             sys.exit()
         except InFailedSqlTransaction as e:
             self.rollback()
             if not str(e).startswith("current transaction is aborted"):
                 raise InFailedSqlTransaction(e)
             traceback.print_exc()
-            self.__db_connection.close()
             sys.exit()
 
     def execute_query(self, sql: str, params=None):
@@ -220,10 +218,8 @@ def select_session_csvs(
     # return ['year_average/avg_2021.csv']
 
 
-@task(log_stdout=True)
-def insert_records(
-    filename, db_name: str, user: str, host: str, port: str, bucket_name: str, region_name: str
-):
+@task(log_stdout=True, max_retries=5, retry_delay=timedelta(seconds=5))
+def insert_records(filename, db_name: str, user: str, host: str, port: str, bucket_name, region_name):
     ic(filename)
     year = filename.strip('year_average/avg_')
     year = year.strip('.csv')
@@ -249,6 +245,7 @@ def insert_records(
         "port": port,
     }
 
+    time.sleep(10)
     with database(**conn_info) as conn:
         commit_count = 0
         for i in tqdm(csv_df.index):
@@ -308,10 +305,11 @@ def insert_records(
                 except TypeError as e:
                     ic(vals[0], year)
                     ic(e)
+    return
            
 
 # IF REGISTERING FOR THE CLOUD, CREATE A LOCAL ENVIRONMENT VARIALBE FOR 'EXECTOR' BEFORE REGISTERING
-coiled_ex = False
+coiled_ex = True
 if coiled_ex == True:
     print("Coiled")
     coiled.create_software_environment(
@@ -325,14 +323,14 @@ if coiled_ex == True:
             "shutdown_on_close": False,
             "name": "NOAA-temperature-db-insert",
             "software": "darrida/noaa-temperature-db-insert",
-            "worker_cpu": 4,
+            "worker_cpu": 2,
             "n_workers": 3,
             "worker_memory":"16 GiB",
             "scheduler_memory": "16 GiB",
         },
     )
 else:
-    executor=LocalDaskExecutor(scheduler="threads", num_workers=12)
+    executor=LocalDaskExecutor(scheduler="threads", num_workers=6)
 
 
 with Flow(name="NOAA Temps: DB Insert Records", executor=executor) as flow:
