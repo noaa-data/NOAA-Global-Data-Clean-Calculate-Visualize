@@ -180,6 +180,13 @@ class database:
 # PREFECT WORKFLOW #
 ####################
 @task(log_stdout=True, max_retries=5, retry_delay=timedelta(seconds=5))
+def aws_auth_envs(aws_access_key_id, aws_access_secret_key):
+    os.environ["AWS_ACCESS_KEY_ID"] = aws_access_key_id
+    os.environ["AWS_SECRET_ACCESS_KEY"] = aws_access_secret_key
+    return True
+
+
+@task(log_stdout=True, max_retries=5, retry_delay=timedelta(seconds=5))
 def aws_all_year_files(bucket_name: str, region_name: str, wait_for=None):
     s3_client = initialize_s3_client(region_name)
     aws_file_set = set()
@@ -334,25 +341,24 @@ else:
 
 
 with Flow(name="NOAA Temps: DB Insert Records", executor=executor) as flow:
+    aws_access_key_id = PrefectSecret('AWS_ACCESS_KEY_ID')
+    aws_access_secret_key = PrefectSecret('AWS_SECRET_ACCESS_KEY')
     region_name = Parameter('REGION_NAME', default='us-east-1')
     bucket_name = Parameter('BUCKET_NAME', default='noaa-temperature-data')
     db_name = Parameter('DB_NAME', default='d5kg55pc96p21p')
     user = Parameter('USER', default='ziuixeipnmbrjm')
     host = Parameter('HOST', default='ec2-3-231-241-17.compute-1.amazonaws.com')
     port = Parameter('PORT', default='5432')
-    t3_aws_files = aws_all_year_files(bucket_name, region_name)
-    t4_csv_list = select_session_csvs(t3_aws_files, db_name, user, host, port)
-    t5_task = insert_records.map(t4_csv_list, 
+    t1_aws_auth = aws_auth_envs(aws_access_key_id, aws_access_secret_key)
+    t2_aws_files = aws_all_year_files(bucket_name, region_name, wait_for=t1_aws_auth)
+    t3_csv_list = select_session_csvs(t2_aws_files, db_name, user, host, port)
+    t4_task = insert_records.map(t3_csv_list, 
         unmapped(db_name), unmapped(user), unmapped(host), unmapped(port), unmapped(bucket_name), unmapped(region_name)
     )
 
 
 flow.run_config = LocalRun(
     working_dir="/home/share/github/1-NOAA-Data-Download-Cleaning-Verification",
-    env={
-        "AWS_ACCESS_KEY_ID": PrefectSecret('AWS_ACCESS_KEY_ID').run(),
-        "AWS_SECRET_ACCESS_KEY ": PrefectSecret('AWS_SECRET_ACCESS_KEY').run()
-    }
 )
 
 if __name__ == '__main__':
