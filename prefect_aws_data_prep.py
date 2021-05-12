@@ -55,8 +55,8 @@ s3 = boto3.resource('s3')
 ########################
 # SUPPORTING FUNCTIONS #
 ########################
-# def initialize_s3_client(region_name: str) -> boto3.client:
-#     return boto3.client('s3', region_name=region_name)
+def initialize_s3_client(region_name: str) -> boto3.client:
+    return boto3.client('s3', region_name=region_name)
 
 
 def csv_clean_spatial_check(filename, data):
