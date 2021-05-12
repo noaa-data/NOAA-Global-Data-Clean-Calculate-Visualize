@@ -30,7 +30,7 @@
 import coiled
 
 import logging
-import os
+import os, io
 from typing import List
 from datetime import timedelta
 
@@ -41,6 +41,8 @@ from prefect import task, Flow, Parameter
 from prefect.executors.dask import DaskExecutor, LocalDaskExecutor
 from prefect.utilities.edges import unmapped, mapped
 from prefect.run_configs.local import LocalRun
+from prefect.tasks.aws.s3 import S3Download, S3Upload, S3List
+from prefect.tasks.secrets.base import PrefectSecret
 import boto3
 from botocore.exceptions import ClientError
 from tqdm import tqdm
@@ -49,7 +51,7 @@ from pandas.errors import EmptyDataError
 from icecream import ic
 
 s3_client = boto3.client('s3', 'us-east-1')
-s3 = boto3.resource('s3')
+s3_resource = boto3.resource('s3')
 
 
 ########################
@@ -60,7 +62,7 @@ def initialize_s3_client(region_name: str) -> boto3.client:
 
 
 def csv_clean_spatial_check(filename, data):
-    records = pd.read_csv(data, #working_dir / file_, 
+    records = pd.read_csv(io.BytesIO(data), #working_dir / file_, 
                           dtype={'FRSHTT': str, 'TEMP': str, 'LATITUDE': str, 'LONGITUDE': str, 'ELEVATION': str, 'DATE': str}
     )
     records.columns = records.columns.str.strip()
@@ -86,9 +88,13 @@ def unique_values_spatial_check(filename, data):
     - Also checks to ensure the station ID number doesn't change in the file.
     """
     try:
-        records = pd.read_csv(data, #working_dir / file_, 
+        records = pd.read_csv(io.BytesIO(data), #working_dir / file_, 
                               dtype={'FRSHTT': str, 'TEMP': str, 'LATITUDE': str, 'LONGITUDE': str, 'ELEVATION': str, 'DATE': str}
         )
+        # records = pd.DataFrame(
+        #     data[1:], columns=data[0],
+        #     dtype={'FRSHTT': str, 'TEMP': str, 'LATITUDE': str, 'LONGITUDE': str, 'ELEVATION': str, 'DATE': str}
+        # )
         records.columns = records.columns.str.strip()    
         site_number = column_unique_values_check(records['STATION'])
         latitude = column_unique_values_check(records['LATITUDE'])
@@ -138,7 +144,7 @@ def move_s3_file(
 ):
     try:
         # create bucket object
-        s3_resource = boto3.resource('s3')
+        # s3_resource = boto3.resource('s3')
         bucket = s3_resource.Bucket(bucket_name)
         # ensure data error folder exists
         s3_client.put_object(Bucket=bucket_name, Body='', Key=f'_data_error/')
@@ -195,24 +201,31 @@ def fetch_aws_folders(region_name, bucket_name):
     folder_list = [x.split('/')[0] for x in folder_list]
     # ic(folder_list)
     folder_list = [x for x in folder_list if x != '']
-    return sorted(folder_list)
-    #return ['2021']
+    # return sorted(folder_list)
+    return ['1929', '1930','1931']
 
 
 @task(log_stdout=True, max_retries=5, retry_delay=timedelta(seconds=5))
 def aws_all_year_files(year: list, bucket_name: str, region_name: str, wait_for=None):
     # if year == '':
     #     return []
-    s3_client = initialize_s3_client(region_name)
-    aws_file_set = set()
-    paginator = s3_client.get_paginator('list_objects_v2')
-    pages = paginator.paginate(Bucket=bucket_name, Prefix=year)
-    for page in pages:
-        list_all_keys = page['Contents']
-        # item arrives in format of 'year/filename'; this extracts that
-        file_l = [x['Key'] for x in list_all_keys]
-        for f in file_l:
-            aws_file_set.add(f)
+    # s3_client = initialize_s3_client(region_name)
+    # aws_file_set = set()
+    aws_file_set = S3List(bucket=bucket_name).run(
+        credentials=PrefectSecret('AWS_CREDENTIALS').run(),
+        prefix=year,
+    )
+    # ic(len(aws_file_set))
+    # aws_file_set = [x for x in aws_file_set if len(x) > 5]
+    # ic(aws_file_set[:100])
+    # paginator = s3_client.get_paginator('list_objects_v2')
+    # pages = paginator.paginate(Bucket=bucket_name, Prefix=year)
+    # for page in pages:
+    #     list_all_keys = page['Contents']
+    #     # item arrives in format of 'year/filename'; this extracts that
+    #     file_l = [x['Key'] for x in list_all_keys]
+    #     for f in file_l:
+    #         aws_file_set.add(f)
         # break
     return list(sorted(aws_file_set))
 
@@ -226,6 +239,7 @@ def aws_lists_prep_for_map(file_l: list, list_size: int, wait_for=None) -> List[
     file_l_consolidated = [i for l in file_l for i in l]
     file_l_consolidated = list(chunks(file_l_consolidated, list_size))
     ic(len(file_l_consolidated))
+
     return file_l_consolidated
 
 
@@ -233,14 +247,19 @@ def aws_lists_prep_for_map(file_l: list, list_size: int, wait_for=None) -> List[
 def process_year_files(files_l: list, region_name: str, bucket_name: str):
     # ic(files_l)
     # s3_client = initialize_s3_client(region_name)
-    # s3 = boto3.resource('s3')
+    # s3_resource = boto3.resource('s3')
     for filename in tqdm(files_l):
         if len(filename) <= 5:
             continue
         else:
             try:
-                obj = s3_client.get_object(Bucket=bucket_name, Key=filename) 
-                data = obj['Body']
+                # obj = s3_client.get_object(Bucket=bucket_name, Key=filename) 
+                # data = obj['Body']
+                data = S3Download(bucket=bucket_name,).run(
+                    key=filename,
+                    credentials=PrefectSecret('AWS_CREDENTIALS').run(),
+                    as_bytes=True
+                )
                 non_unique_spatial = unique_values_spatial_check(
                     filename=filename,
                     data=data
@@ -249,8 +268,13 @@ def process_year_files(files_l: list, region_name: str, bucket_name: str):
                     move_s3_file(non_unique_spatial, bucket_name, s3_client, note='non_unique_spatial')
                     print('uploaded')
                     continue
-                obj = s3_client.get_object(Bucket=bucket_name, Key=filename) 
-                data = obj['Body']
+                # obj = s3_client.get_object(Bucket=bucket_name, Key=filename)
+                # data = obj['Body']
+                data = S3Download(bucket=bucket_name,).run(
+                    key=filename,
+                    credentials=PrefectSecret('AWS_CREDENTIALS').run(),
+                    as_bytes=True
+                )
                 spatial_errors = csv_clean_spatial_check(
                     filename=filename,
                     data=data
@@ -260,7 +284,7 @@ def process_year_files(files_l: list, region_name: str, bucket_name: str):
                     continue
             except EmptyDataError as e:
                 move_s3_file(spatial_errors, bucket_name, s3_client, note='empty_data_error')
-            except s3.meta.client.exceptions.NoSuchKey as e:
+            except s3_resource.meta.client.exceptions.NoSuchKey as e:
                 move_s3_file(spatial_errors, bucket_name, s3_client, note='no_such_key_error')
     print('TASK')
 
@@ -274,10 +298,14 @@ def calculate_year_csv(year_folder, bucket_name, region_name, wait_for: str):
     content = columns
     try:
         for site in tqdm(files_l, desc=year_folder):
-            # ic(site)
-            obj = s3_client.get_object(Bucket=bucket_name, Key=site) 
-            data = obj['Body']
-            df1 = pd.read_csv(data)
+            # obj = s3_client.get_object(Bucket=bucket_name, Key=site) 
+            # data = obj['Body']
+            data = S3Download(bucket=bucket_name,).run(
+                    key=site,
+                    credentials=PrefectSecret('AWS_CREDENTIALS').run(),
+                    as_bytes=True
+                )
+            df1 = pd.read_csv(io.BytesIO(data))
             average_temp = df1['TEMP'].mean()
             average_dewp = df1['DEWP'].mean()
             average_stp = df1['STP'].mean()
@@ -290,14 +318,19 @@ def calculate_year_csv(year_folder, bucket_name, region_name, wait_for: str):
             elevation = df1['ELEVATION'].unique()
             row = f'{site_number},{latitude},{longitude},{elevation},{average_temp},{average_dewp},{average_stp},{average_min},{average_max},{average_prcp}\n'
             content += row
-        s3_client.put_object(Body=content, Bucket=bucket_name, Key=f'year_average/avg_{year_folder}.csv')
+        # s3_client.put_object(Body=content, Bucket=bucket_name, Key=f'year_average/avg_{year_folder}.csv')
+        S3Upload(bucket=bucket_name,).run(
+            data=content,
+            key=f'year_average/avg_{year_folder}.csv',
+            credentials=PrefectSecret('AWS_CREDENTIALS').run(),
+        )
     except EmptyDataError as e:
         pass
 
 
 
 # IF REGISTERING FOR THE CLOUD, CREATE A LOCAL ENVIRONMENT VARIALBE FOR 'EXECTOR' BEFORE REGISTERING
-coiled_ex = True
+coiled_ex = False
 if coiled_ex == True:
     print("Coiled")
     coiled.create_software_environment(
@@ -318,19 +351,19 @@ if coiled_ex == True:
         },
     )
 else:
-    executor=LocalDaskExecutor(scheduler="threads", num_workers=5)
+    executor=LocalDaskExecutor(scheduler="threads", num_workers=8)
         
 
 with Flow(name="NOAA files: clean and calc averages", executor=executor) as flow:
     region_name = Parameter('REGION_NAME', default='us-east-1')
     bucket_name = Parameter('BUCKET_NAME', default='noaa-temperature-data')
-    map_list_size = Parameter('MAP_LIST_SIZE', default=1000)
+    map_list_size = Parameter('MAP_LIST_SIZE', default=15)
     t1_aws_years = fetch_aws_folders(region_name, bucket_name)
-    t2_all_files = aws_all_year_files.map(t1_aws_years, unmapped(bucket_name), unmapped(region_name))
+    t2_all_files = aws_all_year_files.map(mapped(t1_aws_years), unmapped(bucket_name), unmapped(region_name))
     t3_map_prep_l = aws_lists_prep_for_map(t2_all_files, map_list_size)
     t4_clean_complete = process_year_files.map(mapped(t3_map_prep_l), unmapped(region_name), unmapped(bucket_name))
     t5_calc_complete = calculate_year_csv.map(
-        mapped(t1_aws_years), unmapped(bucket_name), unmapped(region_name), wait_for=t4_clean_complete
+        t1_aws_years, unmapped(bucket_name), unmapped(region_name), wait_for=unmapped(t4_clean_complete)
     )
 
 flow.run_config = LocalRun(working_dir="/home/share/github/1-NOAA-Data-Download-Cleaning-Verification")
