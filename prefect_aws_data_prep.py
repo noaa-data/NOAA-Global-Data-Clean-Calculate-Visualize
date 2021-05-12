@@ -139,7 +139,7 @@ def aws_year_files(year: str, bucket_name: str, region_name: str):
 def move_s3_file(
     filename: str, 
     bucket_name: str, 
-    s3_client: boto3.client,
+    # s3_client: boto3.client,
     note: str
 ):
     try:
@@ -162,28 +162,28 @@ def move_s3_file(
     s3_resource.Object(bucket_name, filename).delete()
 
 
-def s3_upload_file(s3_client: boto3.client, file_name, bucket, object_name=None):
-    """Upload a file to an S3 bucket
+# def s3_upload_file(s3_client: boto3.client, file_name, bucket, object_name=None):
+#     """Upload a file to an S3 bucket
 
-    Args:
-        s3_client: initated boto3 s3_client object
-        file_name (str): File to upload
-        bucket (str): target AWS bucket
-        object_name (str): S3 object name. If not specified then file_name is used [Optional]
+#     Args:
+#         s3_client: initated boto3 s3_client object
+#         file_name (str): File to upload
+#         bucket (str): target AWS bucket
+#         object_name (str): S3 object name. If not specified then file_name is used [Optional]
     
-    Return (bool): True if file was uploaded, else False
-    """
-    # If S3 object_name was not specified, use file_name
-    if object_name is None:
-        object_name = file_name
+#     Return (bool): True if file was uploaded, else False
+#     """
+#     # If S3 object_name was not specified, use file_name
+#     if object_name is None:
+#         object_name = file_name
 
-    # Upload the file
-    try:
-        s3_client.upload_file(file_name, bucket, object_name)
-    except ClientError as e:
-        logging.error(e)
-        return False
-    return True
+#     # Upload the file
+#     try:
+#         s3_client.upload_file(file_name, bucket, object_name)
+#     except ClientError as e:
+#         logging.error(e)
+#         return False
+#     return True
 
 
 ####################
@@ -271,7 +271,7 @@ def process_year_files(files_l: list, region_name: str, bucket_name: str):
                     data=data
                 )
                 if non_unique_spatial:
-                    move_s3_file(non_unique_spatial, bucket_name, s3_client, note='non_unique_spatial')
+                    move_s3_file(non_unique_spatial, bucket_name, note='non_unique_spatial')
                     print('uploaded')
                     continue
                 # obj = s3_client.get_object(Bucket=bucket_name, Key=filename)
@@ -289,12 +289,12 @@ def process_year_files(files_l: list, region_name: str, bucket_name: str):
                     data=data
                 )
                 if spatial_errors:
-                    move_s3_file(spatial_errors, bucket_name, s3_client, note='missing_spatial')
+                    move_s3_file(spatial_errors, bucket_name, note='missing_spatial')
                     continue
             except EmptyDataError as e:
-                move_s3_file(spatial_errors, bucket_name, s3_client, note='empty_data_error')
+                move_s3_file(spatial_errors, bucket_name, note='empty_data_error')
             except s3_resource.meta.client.exceptions.NoSuchKey as e:
-                move_s3_file(spatial_errors, bucket_name, s3_client, note='no_such_key_error')
+                move_s3_file(spatial_errors, bucket_name, note='no_such_key_error')
     print('TASK')
 
 
