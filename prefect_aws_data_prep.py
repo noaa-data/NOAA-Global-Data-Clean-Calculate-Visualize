@@ -345,7 +345,7 @@ def calculate_year_csv(year_folder, bucket_name, region_name, wait_for: str):
 
 
 # IF REGISTERING FOR THE CLOUD, CREATE A LOCAL ENVIRONMENT VARIALBE FOR 'EXECTOR' BEFORE REGISTERING
-coiled_ex = False
+coiled_ex = True
 if coiled_ex == True:
     print("Coiled")
     coiled.create_software_environment(
