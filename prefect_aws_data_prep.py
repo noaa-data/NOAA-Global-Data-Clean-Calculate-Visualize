@@ -50,8 +50,8 @@ import pandas as pd
 from pandas.errors import EmptyDataError
 from icecream import ic
 
-s3_client = boto3.client('s3', 'us-east-1')
-s3_resource = boto3.resource('s3')
+# s3_client = boto3.client('s3', 'us-east-1')
+# s3_resource = boto3.resource('s3')
 
 
 ########################
@@ -123,7 +123,7 @@ def aws_year_files(year: str, bucket_name: str, region_name: str):
     print(region_name)
     # if year == '':
     #     return []
-    # s3_client = initialize_s3_client(region_name)
+    s3_client = initialize_s3_client(region_name)
     aws_file_set = set()
     paginator = s3_client.get_paginator('list_objects_v2')
     pages = paginator.paginate(Bucket=bucket_name, Prefix=year)
@@ -144,7 +144,8 @@ def move_s3_file(
 ):
     try:
         # create bucket object
-        # s3_resource = boto3.resource('s3')
+        s3_resource = boto3.resource('s3')
+        s3_client = initialize_s3_client(region_name)
         bucket = s3_resource.Bucket(bucket_name)
         # ensure data error folder exists
         s3_client.put_object(Bucket=bucket_name, Body='', Key=f'_data_error/')
