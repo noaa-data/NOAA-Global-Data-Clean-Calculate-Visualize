@@ -308,10 +308,10 @@ if coiled_ex == True:
             "shutdown_on_close": True,
             "name": "NOAA-temperature-data-clean",
             "software": "darrida/noaa-temperature-data-clean",
-            "worker_cpu": 9,
-            "n_workers": 9,
-            "worker_memory":"16 GiB",
-            "scheduler_memory": "16 GiB",
+            "worker_cpu": 4,
+            "n_workers": 8,
+            "worker_memory":"8 GiB",
+            "scheduler_memory": "8 GiB",
         },
     )
 else:
