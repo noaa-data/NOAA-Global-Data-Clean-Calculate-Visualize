@@ -202,8 +202,8 @@ def fetch_aws_folders(region_name, bucket_name):
     folder_list = [x.split('/')[0] for x in folder_list]
     # ic(folder_list)
     folder_list = [x for x in folder_list if x != '']
-    # return sorted(folder_list)
-    return ['1929', '1930','1931']
+    return sorted(folder_list)
+    # return ['1929', '1930','1931']
 
 
 @task(log_stdout=True, max_retries=5, retry_delay=timedelta(seconds=5))
@@ -373,7 +373,7 @@ else:
 with Flow(name="NOAA files: clean and calc averages", executor=executor) as flow:
     region_name = Parameter('REGION_NAME', default='us-east-1')
     bucket_name = Parameter('BUCKET_NAME', default='noaa-temperature-data')
-    map_list_size = Parameter('MAP_LIST_SIZE', default=15)
+    map_list_size = Parameter('MAP_LIST_SIZE', default=1000)
     t1_aws_years = fetch_aws_folders(region_name, bucket_name)
     t2_all_files = aws_all_year_files.map(mapped(t1_aws_years), unmapped(bucket_name), unmapped(region_name))
     t3_map_prep_l = aws_lists_prep_for_map(t2_all_files, map_list_size)
