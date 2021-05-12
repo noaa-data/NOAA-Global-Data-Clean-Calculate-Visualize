@@ -48,12 +48,15 @@ import pandas as pd
 from pandas.errors import EmptyDataError
 from icecream import ic
 
+s3_client = boto3.client('s3', 'us-east-1')
+s3 = boto3.resource('s3')
+
 
 ########################
 # SUPPORTING FUNCTIONS #
 ########################
-def initialize_s3_client(region_name: str) -> boto3.client:
-    return boto3.client('s3', region_name=region_name)
+# def initialize_s3_client(region_name: str) -> boto3.client:
+#     return boto3.client('s3', region_name=region_name)
 
 
 def csv_clean_spatial_check(filename, data):
@@ -114,7 +117,7 @@ def aws_year_files(year: str, bucket_name: str, region_name: str):
     print(region_name)
     # if year == '':
     #     return []
-    s3_client = initialize_s3_client(region_name)
+    # s3_client = initialize_s3_client(region_name)
     aws_file_set = set()
     paginator = s3_client.get_paginator('list_objects_v2')
     pages = paginator.paginate(Bucket=bucket_name, Prefix=year)
@@ -182,7 +185,7 @@ def s3_upload_file(s3_client: boto3.client, file_name, bucket, object_name=None)
 ####################
 @task(log_stdout=True)
 def fetch_aws_folders(region_name, bucket_name):
-    s3_client = initialize_s3_client(region_name)
+    # s3_client = initialize_s3_client(region_name)
     response = s3_client.list_objects_v2(Bucket=bucket_name, Prefix='', Delimiter='/')
     def yield_folders(response):
         for content in response.get('CommonPrefixes', []):
@@ -200,7 +203,7 @@ def fetch_aws_folders(region_name, bucket_name):
 def aws_all_year_files(year: list, bucket_name: str, region_name: str, wait_for=None):
     # if year == '':
     #     return []
-    s3_client = initialize_s3_client(region_name)
+    # s3_client = initialize_s3_client(region_name)
     aws_file_set = set()
     paginator = s3_client.get_paginator('list_objects_v2')
     pages = paginator.paginate(Bucket=bucket_name, Prefix=year)
@@ -229,8 +232,8 @@ def aws_lists_prep_for_map(file_l: list, list_size: int, wait_for=None) -> List[
 @task(log_stdout=True, max_retries=5, retry_delay=timedelta(seconds=5))
 def process_year_files(files_l: list, region_name: str, bucket_name: str):
     # ic(files_l)
-    s3_client = initialize_s3_client(region_name)
-    s3 = boto3.resource('s3')
+    # s3_client = initialize_s3_client(region_name)
+    # s3 = boto3.resource('s3')
     for filename in tqdm(files_l):
         if len(filename) <= 5:
             continue
@@ -264,7 +267,7 @@ def process_year_files(files_l: list, region_name: str, bucket_name: str):
 
 @task(log_stdout=True, max_retries=5, retry_delay=timedelta(seconds=5))
 def calculate_year_csv(year_folder, bucket_name, region_name, wait_for: str):
-    s3_client = initialize_s3_client(region_name)
+    # s3_client = initialize_s3_client(region_name)
     files_l = aws_year_files(year_folder, bucket_name, region_name)
     files_l = [x for x in files_l if len(x) > 6]
     columns = 'SITE_NUMBER,LATITUDE,LONGITUDE,ELEVATION,AVERAGE_TEMP,DEWP,STP,MIN,MAX,PRCP\n'
