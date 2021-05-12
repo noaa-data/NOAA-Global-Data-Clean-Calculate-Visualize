@@ -251,7 +251,7 @@ def aws_lists_prep_for_map(file_l: list, list_size: int, wait_for=None) -> List[
 def process_year_files(files_l: list, region_name: str, bucket_name: str):
     # ic(files_l)
     # s3_client = initialize_s3_client(region_name)
-    # s3_resource = boto3.resource('s3')
+    s3_resource = boto3.resource('s3')
     for filename in tqdm(files_l):
         if len(filename) <= 5:
             continue
