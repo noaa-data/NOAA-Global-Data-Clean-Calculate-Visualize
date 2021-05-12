@@ -212,7 +212,10 @@ def aws_all_year_files(year: list, bucket_name: str, region_name: str, wait_for=
     # s3_client = initialize_s3_client(region_name)
     # aws_file_set = set()
     aws_file_set = S3List(bucket=bucket_name).run(
-        credentials=PrefectSecret('AWS_CREDENTIALS').run(),
+        credentials={
+            "ACCESS_KEY": PrefectSecret('AWS_ACCESS_KEY_ID').run(),
+            "SECRET_ACCESS_KEY": PrefectSecret('AWS_SECRET_ACCESS_KEY').run()
+        },
         prefix=year,
     )
     # ic(len(aws_file_set))
@@ -257,7 +260,10 @@ def process_year_files(files_l: list, region_name: str, bucket_name: str):
                 # data = obj['Body']
                 data = S3Download(bucket=bucket_name,).run(
                     key=filename,
-                    credentials=PrefectSecret('AWS_CREDENTIALS').run(),
+                    credentials={
+                        "ACCESS_KEY": PrefectSecret('AWS_ACCESS_KEY_ID').run(), 
+                        "SECRET_ACCESS_KEY": PrefectSecret('AWS_SECRET_ACCESS_KEY').run()
+                    },
                     as_bytes=True
                 )
                 non_unique_spatial = unique_values_spatial_check(
@@ -272,7 +278,10 @@ def process_year_files(files_l: list, region_name: str, bucket_name: str):
                 # data = obj['Body']
                 data = S3Download(bucket=bucket_name,).run(
                     key=filename,
-                    credentials=PrefectSecret('AWS_CREDENTIALS').run(),
+                    credentials={
+                        "ACCESS_KEY": PrefectSecret('AWS_ACCESS_KEY_ID').run(),
+                        "SECRET_ACCESS_KEY": PrefectSecret('AWS_SECRET_ACCESS_KEY').run()
+                    },
                     as_bytes=True
                 )
                 spatial_errors = csv_clean_spatial_check(
@@ -302,7 +311,10 @@ def calculate_year_csv(year_folder, bucket_name, region_name, wait_for: str):
             # data = obj['Body']
             data = S3Download(bucket=bucket_name,).run(
                     key=site,
-                    credentials=PrefectSecret('AWS_CREDENTIALS').run(),
+                    credentials={
+                        "ACCESS_KEY": PrefectSecret('AWS_ACCESS_KEY_ID').run(),
+                        "SECRET_ACCESS_KEY": PrefectSecret('AWS_SECRET_ACCESS_KEY').run()
+                    },
                     as_bytes=True
                 )
             df1 = pd.read_csv(io.BytesIO(data))
@@ -322,7 +334,10 @@ def calculate_year_csv(year_folder, bucket_name, region_name, wait_for: str):
         S3Upload(bucket=bucket_name,).run(
             data=content,
             key=f'year_average/avg_{year_folder}.csv',
-            credentials=PrefectSecret('AWS_CREDENTIALS').run(),
+            credentials={
+                "ACCESS_KEY": PrefectSecret('AWS_ACCESS_KEY_ID').run(),
+                "SECRET_ACCESS_KEY": PrefectSecret('AWS_SECRET_ACCESS_KEY').run()
+            },
         )
     except EmptyDataError as e:
         pass
