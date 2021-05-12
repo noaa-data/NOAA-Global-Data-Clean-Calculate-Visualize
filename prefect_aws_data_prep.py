@@ -185,7 +185,7 @@ def s3_upload_file(s3_client: boto3.client, file_name, bucket, object_name=None)
 ####################
 @task(log_stdout=True)
 def fetch_aws_folders(region_name, bucket_name):
-    # s3_client = initialize_s3_client(region_name)
+    s3_client = initialize_s3_client(region_name)
     response = s3_client.list_objects_v2(Bucket=bucket_name, Prefix='', Delimiter='/')
     def yield_folders(response):
         for content in response.get('CommonPrefixes', []):
@@ -203,7 +203,7 @@ def fetch_aws_folders(region_name, bucket_name):
 def aws_all_year_files(year: list, bucket_name: str, region_name: str, wait_for=None):
     # if year == '':
     #     return []
-    # s3_client = initialize_s3_client(region_name)
+    s3_client = initialize_s3_client(region_name)
     aws_file_set = set()
     paginator = s3_client.get_paginator('list_objects_v2')
     pages = paginator.paginate(Bucket=bucket_name, Prefix=year)
