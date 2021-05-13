@@ -202,8 +202,8 @@ def fetch_aws_folders(region_name, bucket_name):
     folder_list = [x.split('/')[0] for x in folder_list]
     # ic(folder_list)
     folder_list = [x for x in folder_list if x != '']
-    return sorted(folder_list)
-    # return ['1929', '1930','1931']
+    #return sorted(folder_list)
+    return ['1929', '1930','1931']
 
 
 @task(log_stdout=True, max_retries=5, retry_delay=timedelta(seconds=5))
