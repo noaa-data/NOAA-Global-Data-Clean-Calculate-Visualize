@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS climate.noaa_year_averages (
 SELECT AddGeometryColumn('climate','noaa_year_averages','geom','4326','POINT', 2);
 
 create index noaa_year_averages_year_idx on climate.noaa_year_averages (year);
+-- create index noaa_year_averages_year_idx on climate.noaa_year_averages (year);
 
 CREATE INDEX noaa_year_averages_geom_idx
   ON climate.noaa_year_averages
@@ -35,6 +36,7 @@ ANALYZE climate.noaa_year_averages;
 VACUUM ANALYZE climate.noaa_year_averages;
 
 create index countries_name_idx on climate.countries (name);
+create index countries_geounit_idx on climate.countries (geounit;
 
 CREATE INDEX countries_geom_idx
   ON climate.countries
