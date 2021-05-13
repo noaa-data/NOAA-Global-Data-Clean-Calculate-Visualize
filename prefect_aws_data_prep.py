@@ -253,14 +253,14 @@ def process_year_files(files_l: list, region_name: str, bucket_name: str):
     # s3_client = initialize_s3_client(region_name)
     # s3_resource = boto3.resource('s3')
     print('process_year_files - start')
-    for filename in tqdm(files_l):
+    counter = 0
+    for count, filename in enumerate(tqdm(files_l)):
         if len(filename) <= 5:
             continue
         else:
             try:
                 # obj = s3_client.get_object(Bucket=bucket_name, Key=filename) 
                 # data = obj['Body']
-                print('try')
                 data = S3Download(bucket=bucket_name,).run(
                     key=filename,
                     credentials={
@@ -298,6 +298,10 @@ def process_year_files(files_l: list, region_name: str, bucket_name: str):
                 move_s3_file(spatial_errors, bucket_name, note='empty_data_error')
             # except s3_resource.meta.client.exceptions.NoSuchKey as e:
             #     move_s3_file(spatial_errors, bucket_name, note='no_such_key_error')
+        counter += 1
+        if counter >= 100:
+            print(count)
+            counter = 0
     print('TASK')
 
 
