@@ -221,8 +221,8 @@ def aws_lists_prep_for_map(file_l: list, list_size: int, total_processed: int, w
         """Yield successive n-sized chunks from lst."""
         for i in range(0, len(file_l), list_size):
             yield file_l[i:i + list_size]
-    file_l = file_l[:total_processed]
     file_l_consolidated = [i for l in file_l for i in l]
+    file_l_consolidated = file_l_consolidated[:total_processed]
     file_l_consolidated = list(chunks(file_l_consolidated, list_size))
     ic(len(file_l_consolidated))
     return file_l_consolidated
