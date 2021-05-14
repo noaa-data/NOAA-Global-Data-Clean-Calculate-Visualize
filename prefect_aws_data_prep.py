@@ -216,12 +216,12 @@ def aws_all_year_files(year: list, bucket_name: str, region_name: str, days_old=
 
 
 @task(log_stdout=True)
-def aws_lists_prep_for_map(file_l: list, list_size: int, wait_for=None) -> List[list]:
+def aws_lists_prep_for_map(file_l: list, list_size: int, total_processed: int, wait_for=None) -> List[list]:
     def chunks(file_l, list_size):
         """Yield successive n-sized chunks from lst."""
         for i in range(0, len(file_l), list_size):
             yield file_l[i:i + list_size]
-    file_l = file_l[:50000]
+    file_l = file_l[:total_processed]
     file_l_consolidated = [i for l in file_l for i in l]
     file_l_consolidated = list(chunks(file_l_consolidated, list_size))
     ic(len(file_l_consolidated))
@@ -341,9 +341,10 @@ with Flow(name="NOAA files: clean and calc averages", executor=executor) as flow
     region_name = Parameter('REGION_NAME', default='us-east-1')
     bucket_name = Parameter('BUCKET_NAME', default='noaa-temperature-data')
     map_list_size = Parameter('MAP_LIST_SIZE', default=1000)
+    total_processed = Parameter('TOTAL_PROCESSED', default=50000)
     t1_aws_years = fetch_aws_folders(region_name, bucket_name)
     t2_all_files = aws_all_year_files.map(t1_aws_years, unmapped(bucket_name), unmapped(region_name))
-    t3_map_prep_l = aws_lists_prep_for_map(t2_all_files, map_list_size)
+    t3_map_prep_l = aws_lists_prep_for_map(t2_all_files, map_list_size, total_processed)
     t4_clean_complete = process_year_files.map(mapped(t3_map_prep_l), unmapped(region_name), unmapped(bucket_name))
     calc_files_done = aws_all_year_files(
         'year_average', bucket_name, region_name, 2, wait_for=t4_clean_complete
