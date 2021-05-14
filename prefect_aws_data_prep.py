@@ -32,7 +32,8 @@ import coiled
 import logging
 import os
 from typing import List
-from datetime import timedelta
+from datetime import datetime, timedelta
+from dateutil.tz import tzutc
 
 # PyPI
 import prefect
@@ -192,12 +193,12 @@ def fetch_aws_folders(region_name, bucket_name):
     # ic(folder_list)
     folder_list = [x for x in folder_list if x != '']
     return sorted(folder_list)
-    #return ['2021']
+    # return ['1929', '1930']
 
 
 @task(log_stdout=True, max_retries=5, retry_delay=timedelta(seconds=5))
-def aws_all_year_files(year: list, bucket_name: str, region_name: str, wait_for=None):
-    # if year == '':
+def aws_all_year_files(year: list, bucket_name: str, region_name: str, days_old=2, wait_for=None):
+    # if len(year) > 4:
     #     return []
     s3_client = initialize_s3_client(region_name)
     aws_file_set = set()
@@ -206,11 +207,13 @@ def aws_all_year_files(year: list, bucket_name: str, region_name: str, wait_for=
     for page in pages:
         list_all_keys = page['Contents']
         # item arrives in format of 'year/filename'; this extracts that
-        file_l = [x['Key'] for x in list_all_keys]
+        file_l = [x['Key'] for x in list_all_keys if x['LastModified'] < datetime.now(tzutc()) - timedelta(days=days_old)]
         for f in file_l:
             aws_file_set.add(f)
         # break
-    return list(sorted(aws_file_set))
+    aws_file_l = list(sorted(aws_file_set))
+    aws_file_l = aws_file_l[:50000]
+    return aws_file_l
 
 
 @task(log_stdout=True)
@@ -254,6 +257,20 @@ def process_year_files(files_l: list, region_name: str, bucket_name: str):
                 if spatial_errors:
                     move_s3_file(spatial_errors, bucket_name, s3_client, note='missing_spatial')
                     continue
+                if not non_unique_spatial and not spatial_errors:
+                    # s3_client.put_object(Body=data, Bucket=bucket_name, Key=filename)#f'year_average/avg_{year_folder}.csv')
+                    s3_object = s3.Object(bucket_name, filename)
+                    s3_object.metadata.update(
+                        {'LastModified': datetime.now(tzutc()).strftime(
+                            '%a, %d %b %Y %H:%M:%S %Z')})
+                    s3_object.copy_from(
+                        CopySource={
+                            'Bucket':bucket_name, 
+                            'Key': filename
+                        },
+                        Metadata=s3_object.metadata, 
+                        MetadataDirective='REPLACE'
+                    )
             except EmptyDataError as e:
                 move_s3_file(spatial_errors, bucket_name, s3_client, note='empty_data_error')
             except s3.meta.client.exceptions.NoSuchKey as e:
@@ -262,7 +279,10 @@ def process_year_files(files_l: list, region_name: str, bucket_name: str):
 
 
 @task(log_stdout=True, max_retries=5, retry_delay=timedelta(seconds=5))
-def calculate_year_csv(year_folder, bucket_name, region_name, wait_for: str):
+def calculate_year_csv(year_folder, finished_files, bucket_name, region_name, wait_for: str):
+    if f'year_average/avg_{year_folder}.csv' in finished_files:
+        print(year_folder)
+        return
     s3_client = initialize_s3_client(region_name)
     files_l = aws_year_files(year_folder, bucket_name, region_name)
     files_l = [x for x in files_l if len(x) > 6]
@@ -325,8 +345,11 @@ with Flow(name="NOAA files: clean and calc averages", executor=executor) as flow
     t2_all_files = aws_all_year_files.map(t1_aws_years, unmapped(bucket_name), unmapped(region_name))
     t3_map_prep_l = aws_lists_prep_for_map(t2_all_files, map_list_size)
     t4_clean_complete = process_year_files.map(mapped(t3_map_prep_l), unmapped(region_name), unmapped(bucket_name))
+    calc_files_done = aws_all_year_files(
+        'year_average', bucket_name, region_name, 2, wait_for=t4_clean_complete
+    )
     t5_calc_complete = calculate_year_csv.map(
-        mapped(t1_aws_years), unmapped(bucket_name), unmapped(region_name), wait_for=t4_clean_complete
+        mapped(t1_aws_years), unmapped(calc_files_done), unmapped(bucket_name), unmapped(region_name), wait_for=t4_clean_complete
     )
 
 flow.run_config = LocalRun(working_dir="/home/share/github/1-NOAA-Data-Download-Cleaning-Verification")
