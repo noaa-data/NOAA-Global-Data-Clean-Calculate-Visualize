@@ -212,7 +212,6 @@ def aws_all_year_files(year: list, bucket_name: str, region_name: str, days_old=
             aws_file_set.add(f)
         # break
     aws_file_l = list(sorted(aws_file_set))
-    aws_file_l = aws_file_l[:50000]
     return aws_file_l
 
 
@@ -222,6 +221,7 @@ def aws_lists_prep_for_map(file_l: list, list_size: int, wait_for=None) -> List[
         """Yield successive n-sized chunks from lst."""
         for i in range(0, len(file_l), list_size):
             yield file_l[i:i + list_size]
+    file_l = file_l[:50000]
     file_l_consolidated = [i for l in file_l for i in l]
     file_l_consolidated = list(chunks(file_l_consolidated, list_size))
     ic(len(file_l_consolidated))
