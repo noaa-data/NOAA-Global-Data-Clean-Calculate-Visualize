@@ -294,7 +294,7 @@ def process_year_files(files_l: list, region_name: str, bucket_name: str):
 
 
 @task(log_stdout=True, max_retries=5, retry_delay=timedelta(seconds=5))
-def calculate_year_csv(year_folder, finished_files, bucket_name, region_name, wait_for: str):
+def calculate_year_csv(year_folder, finished_files, bucket_name, region_name, calc_all: bool, wait_for: str):
     print(finished_files)
     if not calc_all:
         if f'year_average/avg_{year_folder}.csv' in finished_files:
