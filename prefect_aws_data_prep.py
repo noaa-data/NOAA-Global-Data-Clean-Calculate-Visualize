@@ -205,6 +205,8 @@ def fetch_aws_folders(region_name, bucket_name):
 def aws_all_year_files(year: list, bucket_name: str, region_name: str, days_old=2, wait_for=None):
     # if len(year) > 4:
     #     return []
+    if year == 'year_average':
+        return
     s3_client = initialize_s3_client(region_name)
     aws_file_set = set()
     paginator = s3_client.get_paginator('list_objects_v2')
