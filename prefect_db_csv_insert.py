@@ -275,7 +275,8 @@ def insert_records(filename, db_name: str, user: str, host: str, port: str, buck
             if latitude not in ('nan', '') and longitude not in ('nan', ''):
                 try:
                     cursor = conn.cursor()
-                    val = cursor.callproc('ST_GeomFromText', ((f'POINT({longitude} {latitude})'), 4326))
+                    # val = cursor.callproc('ST_GeomFromText', ((f'POINT({longitude} {latitude})'), 4326))
+                    cursor.callproc('ST_GeomFromText', ((f'POINT({longitude} {latitude})'), 4326))
                     geom = cursor.fetchone()[0]
                     insert_str="""
                         insert into climate.noaa_year_averages 
