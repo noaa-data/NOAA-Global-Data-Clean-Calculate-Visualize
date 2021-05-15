@@ -214,9 +214,9 @@ def aws_all_year_files(year: list, bucket_name: str, region_name: str, min_old: 
         list_all_keys = page['Contents']
         # item arrives in format of 'year/filename'; this extracts that
         if time_less_than:
-            file_l = [x['Key'] for x in list_all_keys if x['LastModified'] < datetime.now(tzutc()) - timedelta(minutes=min_old)]
-        else:
             file_l = [x['Key'] for x in list_all_keys if x['LastModified'] > datetime.now(tzutc()) - timedelta(minutes=min_old)]
+        else:
+            file_l = [x['Key'] for x in list_all_keys if x['LastModified'] < datetime.now(tzutc()) - timedelta(minutes=min_old)]
         for f in file_l:
             aws_file_set.add(f)
         # break
@@ -309,9 +309,9 @@ def aws_calc_files(folder: str, bucket_name: str, region_name: str, min_old: int
         if calc_all:
             file_l = [x['Key'] for x in list_all_keys]
         elif time_less_than:
-            file_l = [x['Key'] for x in list_all_keys if x['LastModified'] < datetime.now(tzutc()) - timedelta(minutes=min_old)]
-        else:
             file_l = [x['Key'] for x in list_all_keys if x['LastModified'] > datetime.now(tzutc()) - timedelta(minutes=min_old)]
+        else:
+            file_l = [x['Key'] for x in list_all_keys if x['LastModified'] < datetime.now(tzutc()) - timedelta(minutes=min_old)]
         for f in file_l:
             aws_file_set.add(f)
         # break
