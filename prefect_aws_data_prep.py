@@ -84,7 +84,6 @@ def unique_values_spatial_check(filename, data):
     - Also checks to ensure the station ID number doesn't change in the file.
     """
     try:
-        print(f'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA: {filename}')
         records = pd.read_csv(data, #working_dir / file_, 
                               dtype={'FRSHTT': str, 'TEMP': str, 'LATITUDE': str, 'LONGITUDE': str, 'ELEVATION': str, 'DATE': str}
         )
@@ -346,7 +345,7 @@ else:
     executor=LocalDaskExecutor(scheduler="threads", num_workers=5)
         
 
-with Flow(name="NOAA files: clean and calc averages", executor=executor) as flow:
+with Flow(name="NOAA files: Clean and Calc", executor=executor) as flow:
     region_name = Parameter('REGION_NAME', default='us-east-1')
     bucket_name = Parameter('BUCKET_NAME', default='noaa-temperature-data')
     map_list_size = Parameter('MAP_LIST_SIZE', default=1000)
