@@ -321,7 +321,7 @@ def calculate_year_csv(year_folder, finished_files, bucket_name, region_name, wa
 
 
 # IF REGISTERING FOR THE CLOUD, CREATE A LOCAL ENVIRONMENT VARIALBE FOR 'EXECTOR' BEFORE REGISTERING
-coiled_ex = True
+coiled_ex = False
 if coiled_ex == True:
     print("Coiled")
     coiled.create_software_environment(
@@ -350,7 +350,7 @@ with Flow(name="NOAA files: Clean and Calc", executor=executor) as flow:
     bucket_name = Parameter('BUCKET_NAME', default='noaa-temperature-data')
     map_list_size = Parameter('MAP_LIST_SIZE', default=1000)
     total_processed = Parameter('TOTAL_PROCESSED', default=50000)
-    hours_old = Parameter('DAYS_OLD', default=48)
+    hours_old = Parameter('DAYS_OLD', default=1)
     t1_aws_years = fetch_aws_folders(region_name, bucket_name)
     t2_all_files = aws_all_year_files.map(t1_aws_years, unmapped(bucket_name), unmapped(region_name), unmapped(hours_old))
     t3_map_prep_l = aws_lists_prep_for_map(t2_all_files, map_list_size, total_processed)
