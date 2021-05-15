@@ -84,6 +84,7 @@ def unique_values_spatial_check(filename, data):
     - Also checks to ensure the station ID number doesn't change in the file.
     """
     try:
+        print(f'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA: {filename}')
         records = pd.read_csv(data, #working_dir / file_, 
                               dtype={'FRSHTT': str, 'TEMP': str, 'LATITUDE': str, 'LONGITUDE': str, 'ELEVATION': str, 'DATE': str}
         )
@@ -102,6 +103,10 @@ def unique_values_spatial_check(filename, data):
             return filename
     except EmptyDataError as e:
         return 'X'
+    # except KeyError as e:
+    #     return 'X'
+    # except pd.errors.ParserError as e:
+    #     return 'X'
 
 
 def column_unique_values_check(column) -> str:
