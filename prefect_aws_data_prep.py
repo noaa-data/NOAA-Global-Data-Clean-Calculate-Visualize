@@ -242,7 +242,7 @@ def process_year_files(files_l: list, region_name: str, bucket_name: str):
     for filename in tqdm(files_l):
         if len(filename) <= 5:
             continue
-        if 'year_average' in filename:
+        if 'year_average' in filename or '_data_error' in filename:
             continue
         else:
             try:
