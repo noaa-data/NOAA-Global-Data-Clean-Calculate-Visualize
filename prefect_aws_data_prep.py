@@ -330,7 +330,7 @@ def calculate_year_csv(year_folder, finished_files, bucket_name, region_name, ca
 
 
 # IF REGISTERING FOR THE CLOUD, CREATE A LOCAL ENVIRONMENT VARIALBE FOR 'EXECTOR' BEFORE REGISTERING
-coiled_ex = True
+coiled_ex = False
 if coiled_ex == True:
     print("Coiled")
     coiled.create_software_environment(
@@ -370,7 +370,7 @@ with Flow(name="NOAA files: Clean and Calc", executor=executor) as flow:
         'year_average', bucket_name, region_name, min_old, time_less_than, wait_for=t4_clean_complete
     )
     t5_calc_complete = calculate_year_csv.map(
-        mapped(t1_aws_years), unmapped(calc_files_done), unmapped(bucket_name), unmapped(region_name), unmapped(calc_all), wait_for=t4_clean_complete
+        mapped(t1_aws_years), unmapped(calc_files_done), unmapped(bucket_name), unmapped(region_name), unmapped(calc_all), unmapped(t4_clean_complete)
     )
 
 flow.run_config = LocalRun(working_dir="/home/share/github/1-NOAA-Data-Download-Cleaning-Verification")
