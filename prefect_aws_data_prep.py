@@ -205,8 +205,8 @@ def fetch_aws_folders(region_name, bucket_name):
 def aws_all_year_files(year: list, bucket_name: str, region_name: str, days_old=2, wait_for=None):
     # if len(year) > 4:
     #     return []
-    if year == 'year_average':
-        return
+    # if year == 'year_average':
+    #     return
     s3_client = initialize_s3_client(region_name)
     aws_file_set = set()
     paginator = s3_client.get_paginator('list_objects_v2')
@@ -242,6 +242,8 @@ def process_year_files(files_l: list, region_name: str, bucket_name: str):
     s3 = boto3.resource('s3')
     for filename in tqdm(files_l):
         if len(filename) <= 5:
+            continue
+        if 'year_average' in filename:
             continue
         else:
             try:
