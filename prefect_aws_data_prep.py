@@ -302,7 +302,7 @@ def aws_calc_files(folder: str, bucket_name: str, region_name: str, min_old: int
     s3_client = initialize_s3_client(region_name)
     aws_file_set = set()
     paginator = s3_client.get_paginator('list_objects_v2')
-    pages = paginator.paginate(Bucket=bucket_name, Prefix=year)
+    pages = paginator.paginate(Bucket=bucket_name, Prefix=folder)
     for page in pages:
         list_all_keys = page['Contents']
         # item arrives in format of 'year/filename'; this extracts that
