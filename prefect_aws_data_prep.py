@@ -201,7 +201,7 @@ def fetch_aws_folders(region_name, bucket_name):
 
 
 @task(log_stdout=True, max_retries=5, retry_delay=timedelta(seconds=5))
-def aws_all_year_files(year: list, bucket_name: str, region_name: str, days_old: int, wait_for=None):
+def aws_all_year_files(year: list, bucket_name: str, region_name: str, hours_old: int, wait_for=None):
     # if len(year) > 4:
     #     return []
     # if year == 'year_average':
@@ -213,7 +213,7 @@ def aws_all_year_files(year: list, bucket_name: str, region_name: str, days_old:
     for page in pages:
         list_all_keys = page['Contents']
         # item arrives in format of 'year/filename'; this extracts that
-        file_l = [x['Key'] for x in list_all_keys if x['LastModified'] < datetime.now(tzutc()) - timedelta(days=days_old)]
+        file_l = [x['Key'] for x in list_all_keys if x['LastModified'] < datetime.now(tzutc()) - timedelta(hours=hours_old)]
         for f in file_l:
             aws_file_set.add(f)
         # break
@@ -350,13 +350,13 @@ with Flow(name="NOAA files: Clean and Calc", executor=executor) as flow:
     bucket_name = Parameter('BUCKET_NAME', default='noaa-temperature-data')
     map_list_size = Parameter('MAP_LIST_SIZE', default=1000)
     total_processed = Parameter('TOTAL_PROCESSED', default=50000)
-    days_old = Parameter('DAYS_OLD', default=2)
+    hours_old = Parameter('DAYS_OLD', default=48)
     t1_aws_years = fetch_aws_folders(region_name, bucket_name)
-    t2_all_files = aws_all_year_files.map(t1_aws_years, unmapped(bucket_name), unmapped(region_name), unmapped(days_old))
+    t2_all_files = aws_all_year_files.map(t1_aws_years, unmapped(bucket_name), unmapped(region_name), unmapped(hours_old))
     t3_map_prep_l = aws_lists_prep_for_map(t2_all_files, map_list_size, total_processed)
     t4_clean_complete = process_year_files.map(mapped(t3_map_prep_l), unmapped(region_name), unmapped(bucket_name))
     calc_files_done = aws_all_year_files(
-        'year_average', bucket_name, region_name, days_old, wait_for=t4_clean_complete
+        'year_average', bucket_name, region_name, hours_old, wait_for=t4_clean_complete
     )
     t5_calc_complete = calculate_year_csv.map(
         mapped(t1_aws_years), unmapped(calc_files_done), unmapped(bucket_name), unmapped(region_name), wait_for=t4_clean_complete
