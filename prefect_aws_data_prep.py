@@ -105,8 +105,8 @@ def unique_values_spatial_check(filename, data):
         return 'X'
     # except KeyError as e:
     #     return 'X'
-    # except pd.errors.ParserError as e:
-    #     return 'X'
+    except pd.errors.ParserError as e:
+        return 'X'
 
 
 def column_unique_values_check(column) -> str:
