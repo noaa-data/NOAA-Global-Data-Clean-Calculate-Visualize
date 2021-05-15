@@ -294,36 +294,12 @@ def process_year_files(files_l: list, region_name: str, bucket_name: str):
 
 
 @task(log_stdout=True, max_retries=5, retry_delay=timedelta(seconds=5))
-def aws_calc_files(folder: str, bucket_name: str, region_name: str, min_old: int, time_less_than: bool, calc_all=False, wait_for=None):
-    # if len(year) > 4:
-    #     return []
-    # if year == 'year_average':
-    #     return
-    s3_client = initialize_s3_client(region_name)
-    aws_file_set = set()
-    paginator = s3_client.get_paginator('list_objects_v2')
-    pages = paginator.paginate(Bucket=bucket_name, Prefix=folder)
-    for page in pages:
-        list_all_keys = page['Contents']
-        # item arrives in format of 'year/filename'; this extracts that
-        if calc_all:
-            file_l = [x['Key'] for x in list_all_keys]
-        elif time_less_than:
-            file_l = [x['Key'] for x in list_all_keys if x['LastModified'] > datetime.now(tzutc()) - timedelta(minutes=min_old)]
-        else:
-            file_l = [x['Key'] for x in list_all_keys if x['LastModified'] < datetime.now(tzutc()) - timedelta(minutes=min_old)]
-        for f in file_l:
-            aws_file_set.add(f)
-        # break
-    aws_file_l = list(sorted(aws_file_set))
-    return aws_file_l
-
-
-@task(log_stdout=True, max_retries=5, retry_delay=timedelta(seconds=5))
 def calculate_year_csv(year_folder, finished_files, bucket_name, region_name, wait_for: str):
-    if f'year_average/avg_{year_folder}.csv' in finished_files:
-        print(year_folder)
-        return
+    print(finished_files)
+    if not calc_all:
+        if f'year_average/avg_{year_folder}.csv' in finished_files:
+            print(year_folder)
+            return
     s3_client = initialize_s3_client(region_name)
     files_l = aws_year_files(year_folder, bucket_name, region_name)
     files_l = [x for x in files_l if len(x) > 6]
@@ -390,11 +366,11 @@ with Flow(name="NOAA files: Clean and Calc", executor=executor) as flow:
     t2_all_files = aws_all_year_files.map(t1_aws_years, unmapped(bucket_name), unmapped(region_name), unmapped(min_old), unmapped(time_less_than))
     t3_map_prep_l = aws_lists_prep_for_map(t2_all_files, map_list_size, total_processed)
     t4_clean_complete = process_year_files.map(mapped(t3_map_prep_l), unmapped(region_name), unmapped(bucket_name))
-    calc_files_done = aws_calc_files(
-        'year_average', bucket_name, region_name, min_old, time_less_than, calc_all, wait_for=t4_clean_complete
+    calc_files_done = aws_all_year_files(
+        'year_average', bucket_name, region_name, min_old, time_less_than, wait_for=t4_clean_complete
     )
     t5_calc_complete = calculate_year_csv.map(
-        mapped(t1_aws_years), unmapped(calc_files_done), unmapped(bucket_name), unmapped(region_name), wait_for=t4_clean_complete
+        mapped(t1_aws_years), unmapped(calc_files_done), unmapped(bucket_name), unmapped(region_name), unmapped(calc_all), wait_for=t4_clean_complete
     )
 
 flow.run_config = LocalRun(working_dir="/home/share/github/1-NOAA-Data-Download-Cleaning-Verification")
