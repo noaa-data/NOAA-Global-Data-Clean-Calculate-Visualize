@@ -326,6 +326,8 @@ def calculate_year_csv(year_folder, finished_files, bucket_name, region_name, ca
         s3_client.put_object(Body=content, Bucket=bucket_name, Key=f'year_average/avg_{year_folder}.csv')
     except EmptyDataError as e:
         pass
+    except pd.errors.ParserError as e:
+        pass
 
 
 
