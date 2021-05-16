@@ -305,8 +305,8 @@ def calculate_year_csv(year_folder, finished_files, bucket_name, region_name, ca
     files_l = [x for x in files_l if len(x) > 6]
     columns = 'SITE_NUMBER,LATITUDE,LONGITUDE,ELEVATION,AVERAGE_TEMP,DEWP,STP,MIN,MAX,PRCP\n'
     content = columns
-    try:
-        for site in tqdm(files_l, desc=year_folder):
+    for site in tqdm(files_l, desc=year_folder):
+        try:
             # ic(site)
             obj = s3_client.get_object(Bucket=bucket_name, Key=site) 
             data = obj['Body']
@@ -323,11 +323,11 @@ def calculate_year_csv(year_folder, finished_files, bucket_name, region_name, ca
             elevation = df1['ELEVATION'].unique()
             row = f'{site_number},{latitude},{longitude},{elevation},{average_temp},{average_dewp},{average_stp},{average_min},{average_max},{average_prcp}\n'
             content += row
-        s3_client.put_object(Body=content, Bucket=bucket_name, Key=f'year_average/avg_{year_folder}.csv')
-    except EmptyDataError as e:
-        pass
-    except pd.errors.ParserError as e:
-        pass
+        except EmptyDataError as e:
+            pass
+        except pd.errors.ParserError as e:
+            pass
+    s3_client.put_object(Body=content, Bucket=bucket_name, Key=f'year_average/avg_{year_folder}.csv')
 
 
 
