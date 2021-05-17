@@ -3,7 +3,9 @@
   - Cloud data management via AWS
   - "Big Data" map/reduce concepts through Prefect and Coiled (utilizing Dask and AWS)
   - Spatial Database programming using Python and PostGIS
-  - Spatial Database indexes using PostGIS
+  - Spatial database indexes using PostGIS
+  - Spatial queries using a SQL IDE and QGIS
+- Google Sheets Slides: https://docs.google.com/presentation/d/1IbAh9S_fQA_ZzCy-E5UYQETqLkWdqNlPzbcCE3s8jAU/edit?usp=sharing
 
 ## Overview of Entire Process
 - (1) (scripted) Downloads ~538,000 CSV files from NOAA containing temperature data
