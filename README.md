@@ -69,12 +69,3 @@ shp2pgsql -s 4326 ne_10m_urban_areas > urban_areas.sql
 ### Reference Material for Countries Overlay
 - OGR2OGR Cheat Sheet: http://www.bostongis.com/PrinterFriendly.aspx?content_name=ogr_cheatsheet
 - Install GDAL (used Conda): https://ljvmiranda921.github.io/notebook/2019/04/13/install-gdal/#using-conda
-
-## Issues Encountered/Additional Work Needed
-- Conceptually the functionality of this project serves its purpose, but this is quite a broad project, done outside of an enterprise production context. As such, it's not perfect.
-- Things to improve:
-  - The data cleaning step has room for improvement
-    - The majority of the time at this point my process is only encountering 9 or 10 files that have mistakes/omissions (the kind that don't crash the script) in them that my code is not accounting for (pretty decent considering it's processing through over 500,000 files). That said, some of my error handling for bad data is fairly broad or generalized. Depending on what the data would be used for it might be too brought. It does try to correct easily idenfiable minor mistakes causing what would otherwise be bad data though.
-  - Spatial Reference Issues
-    - Between my two tables there are some spatial inconsitencies. I created the geometry colomns in the NOAA temp table using 4326, and converted the GEOJSON file using 4326, but possible there are properties of the GEOJSON file unknown to me causing the issues. I'm looking forwad to learning more about this in the GIS class in the Fall. I can tell there are issues because the queries between the two tables are providing strange results (i.e., my uneducated guess would be that there are not more NOAA sensing sites in Yemon than in the US or UK...). This specific concept is a little outside of the scope of this.
-    - Outside of this (not minor - if this were to be used in a production context) issue, the spatial indexes work well, as well as the queries using spatial joins to identify NOAA sensing site points in the Countries table polygons.
