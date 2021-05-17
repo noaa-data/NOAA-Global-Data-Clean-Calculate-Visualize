@@ -36,7 +36,7 @@ ANALYZE climate.noaa_year_averages;
 VACUUM ANALYZE climate.noaa_year_averages;
 
 create index countries_name_idx on climate.countries (name);
-create index countries_geounit_idx on climate.countries (geounit;
+create index countries_geounit_idx on climate.countries (geounit);
 
 CREATE INDEX countries_geom_idx
   ON climate.countries
@@ -44,6 +44,13 @@ CREATE INDEX countries_geom_idx
 
 ANALYZE climate.countries;
 VACUUM ANALYZE climate.countries;
+
+CREATE INDEX ne_10m_urban_areas_geom_idx
+  ON climate.ne_10m_urban_areas
+  USING GIST (geom);
+
+ANALYZE climate.ne_10m_urban_areas;
+VACUUM ANALYZE climate.ne_10m_urban_areas;
 
 -- QUERY SITES THE JOIN LOCATES THE POLYGON IDENTIFIED AS THE USA
 select * 
@@ -57,5 +64,12 @@ select count(t1.station), c1.name
 from climate.noaa_year_averages t1
 join climate.countries c1
 on st_contains(c1.wkb_geometry, t1.geom)
-where t1.year = 1995
+where t1.year = 2021
 group by c1.name;
+
+-- QUERY NUMBER OF SITES IN THE DETROIT HIGH POP URBAN AREA
+select * 
+from climate.noaa_year_averages station
+join climate.ne_10m_urban_areas urban
+on st_contains(urban.geom, station.geom)
+where urban.gid = 4806;

@@ -307,7 +307,6 @@ def calculate_year_csv(year_folder, finished_files, bucket_name, region_name, ca
     content = columns
     for site in tqdm(files_l, desc=year_folder):
         try:
-            # ic(site)
             obj = s3_client.get_object(Bucket=bucket_name, Key=site) 
             data = obj['Body']
             df1 = pd.read_csv(data)

@@ -134,11 +134,9 @@ def find_new_year(url: str, next_year: bool, year: int, data_dir: str):
     print('STATUS => current year not finished.')
 
 executor=LocalDaskExecutor(scheduler="threads", num_workers=5)
-
 with Flow('NOAA files: Download All', executor=executor) as flow:
     base_url = Parameter('base_url', default='https://www.ncei.noaa.gov/data/global-summary-of-the-day/access/')
     data_dir = Parameter('data_dir', default=str(Path('/media/share/store_240a/data_downloads/noaa_daily_avg_temps')))
-    # data_dir = Parameter('data_dir', default=str(Path('/mnt/c/Users/benha/data_downloads/noaa_global_temps')))
 
     t1_year = find_highest_year(url=base_url, data_dir=data_dir)
     t2_url  = build_url(base_url=base_url, year=t1_year)

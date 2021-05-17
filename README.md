@@ -53,12 +53,23 @@
 ogr2ogr -f "PostgreSQL" PG:"host=ec2-3-231-241-17.compute-1.amazonaws.com user=ziuixeipnmbrjm dbname=d5kg55pc96p21p password=<PASSWORD>" "climate.countries.json" -t_srs "EPSG:4326"
 ```
 
+## Urban Areas Overlay
+- Source: https://www.naturalearthdata.com/http//www.naturalearthdata.com/download/10m/cultural/ne_10m_urban_areas.zip
+- Converted and inserted into PostgreSQL using GDAL
+  - climate = schema
+  - ne_10m_urban_areas = table name
+```shell
+
+shp2pgsql -s 4326 ne_10m_urban_areas > urban_areas.sql
+
+```
+
 ### Reference Material for Countries Overlay
 - OGR2OGR Cheat Sheet: http://www.bostongis.com/PrinterFriendly.aspx?content_name=ogr_cheatsheet
 - Install GDAL (used Conda): https://ljvmiranda921.github.io/notebook/2019/04/13/install-gdal/#using-conda
 
 ## Issues Encountered/Additional Work Needed
-- Conceptually the functionality of this project serves it's purpose, but this is quite a broad project, done outside of an enterprise production context. As such, it's not perfect.
+- Conceptually the functionality of this project serves its purpose, but this is quite a broad project, done outside of an enterprise production context. As such, it's not perfect.
 - Things to improve:
   - The data cleaning step has room for improvement
     - The majority of the time at this point my process is only encountering 9 or 10 files that have mistakes/omissions (the kind that don't crash the script) in them that my code is not accounting for (pretty decent considering it's processing through over 500,000 files). That said, some of my error handling for bad data is fairly broad or generalized. Depending on what the data would be used for it might be too brought. It does try to correct easily idenfiable minor mistakes causing what would otherwise be bad data though.
