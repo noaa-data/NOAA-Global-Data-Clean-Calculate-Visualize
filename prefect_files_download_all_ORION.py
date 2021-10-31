@@ -23,22 +23,18 @@
 ##############################################################################
 
 # PyPI
-from prefect import task, Flow, Parameter, unmapped, mapped
-from prefect.executors.dask import LocalDaskExecutor
-from prefect.run_configs.local import LocalRun
-from prefect.schedules import IntervalSchedule
+from prefect import task, flow
+from prefect.executors import DaskExecutor
 from bs4 import BeautifulSoup as BS
 import requests
-from tqdm import tqdm
-from icecream import ic
 
 # Standard
 from pathlib import Path
 import os
 import re
-from datetime import timedelta
 
-@task(log_stdout=True)
+
+@task
 def find_highest_year(url: str, data_dir):
     year_folders = os.listdir(path=data_dir)
     print(year_folders)
@@ -48,12 +44,12 @@ def find_highest_year(url: str, data_dir):
         return 0
 
 
-@task(log_stdout=True)
+@task
 def build_url(base_url, year=''):
     return f'{base_url}/{year}'
 
 
-@task(log_stdout=True)
+@task
 def query_cloud_csvs(url: str, year: int) -> set:
     response = requests.get(url)
     parsed_html = BS(response.content, 'html.parser')
@@ -64,7 +60,7 @@ def query_cloud_csvs(url: str, year: int) -> set:
     return csv_cloud_set
 
 
-@task(log_stdout=True)
+@task
 def query_local_csvs(year: int, data_dir: str) -> set:
     csv_local_set = set()
     data_dir = Path(data_dir)
@@ -75,26 +71,18 @@ def query_local_csvs(year: int, data_dir: str) -> set:
     return csv_local_set
 
 
-@task(log_stdout=True)
-def query_diff_local_cloud(local_set: set, cloud_set: set, chunk_size: int, workers: int) -> set:
+@task
+def query_diff_local_cloud(local_set: set, cloud_set: set) -> set:
     diff_set = cloud_set.difference(local_set)
     if diff_set:
         print(f'{len(diff_set)} new data files available for download.')
     else:
         print(f'No new data files for this run.')
     diff_l = list(diff_set)
-    if chunk_size > 1000:
-        chunk_size = 1000
-        print('CHANGED TO DEFAULT CHUCK SIZE: 1000')
-    if len(diff_l) < workers * chunk_size:
-        ic(len(diff_l), workers, chunk_size)
-        chunk_size = int(len(diff_l)/workers) + 1
-        print(f'LESS THAN {workers * 200} RECORS: Chunk size: {chunk_size}')
-    diff_l = [diff_l[x:x+chunk_size] for x in range(0, len(diff_l), chunk_size)]
     return diff_l
 
 
-@task(log_stdout=True, max_retries=5, retry_delay=timedelta(seconds=5))
+@task
 def download_new_csvs(url: str, year: int, diff_set: set, data_dir: str) -> bool:
     if int(year) > 0:
         count = 0
@@ -102,11 +90,11 @@ def download_new_csvs(url: str, year: int, diff_set: set, data_dir: str) -> bool
         download_path = data_dir / str(year)
         if os.path.exists(download_path) == False:
             Path(download_path).mkdir(parents=True, exist_ok=True)
-        for i in tqdm(diff_set):
+        for i in diff_set:
             if count <= 1000:
                 try:
                     download_url = url + '/' + i
-                    # print(download_url)
+                    print(download_url)
                     result = requests.get(download_url)
                     file_path = Path(data_dir / year / i)
                     open(file_path, 'wb').write(result.content)
@@ -119,7 +107,7 @@ def download_new_csvs(url: str, year: int, diff_set: set, data_dir: str) -> bool
         return True
 
 
-@task(log_stdout=True)
+@task
 def find_new_year(url: str, next_year: bool, year: int, data_dir: str):
     if next_year:
         response = requests.get(url)
@@ -146,25 +134,19 @@ def find_new_year(url: str, next_year: bool, year: int, data_dir: str):
     print('STATUS => current year not finished.')
 
 
-schedule = IntervalSchedule(interval=timedelta(seconds=10))
-
-n_workers = 7
-executor=LocalDaskExecutor(scheduler="threads", num_workers=n_workers)
-with Flow('NOAA files: Download All', executor=executor, schedule=schedule) as flow:
-    base_url = Parameter('base_url', default='https://www.ncei.noaa.gov/data/global-summary-of-the-day/access/')
-    data_dir = Parameter('data_dir', default=str(Path('./local_data/noaa_temp_downloads')))
-    download_chunk_size = Parameter('download_map_lists', default=50)
+@flow(executor=DaskExecutor())
+def parallel_flow():
+    base_url = 'https://www.ncei.noaa.gov/data/global-summary-of-the-day/access/'
+    data_dir = str(Path('./local_data/noaa_temp_downloads'))
 
     t1_year = find_highest_year(url=base_url, data_dir=data_dir)
     t2_url  = build_url(base_url=base_url, year=t1_year)
     t3_cset = query_cloud_csvs(url=t2_url, year=t1_year)
     t4_lset = query_local_csvs(year=t1_year, data_dir=data_dir)
-    t5_diff_l = query_diff_local_cloud(local_set=t4_lset, cloud_set=t3_cset, chunk_size=download_chunk_size, workers=n_workers)
-    t6_next = download_new_csvs(url=unmapped(t2_url), year=unmapped(t1_year), diff_set=mapped(t5_diff_l), data_dir=unmapped(data_dir))
-    t7_task = find_new_year(url=base_url, next_year=t6_next, year=t1_year, data_dir=data_dir)
-
-flow.run_config = LocalRun(working_dir="/home/share/github/1-NOAA-Data-Download-Cleaning-Verification/")
+    t5_diff_l = query_diff_local_cloud(local_set=t4_lset, cloud_set=t3_cset)
+    t6_next = download_new_csvs(url=t2_url, year=t1_year, diff_set=t5_diff_l, data_dir=data_dir)
+    return find_new_year(url=base_url, next_year=t6_next, year=t1_year, data_dir=data_dir)
 
 
 if __name__ == '__main__':
-    flow.run()
+    state = parallel_flow()

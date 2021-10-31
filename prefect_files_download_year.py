@@ -122,7 +122,7 @@ def download_new_csvs(url: str, year: str, diff_set: set, data_dir: str, dwnld_c
 with Flow('NOAA files: Update Year') as flow:
     year = Parameter('year', default=date.today().year)
     base_url = Parameter('base_url', default='https://www.ncei.noaa.gov/data/global-summary-of-the-day/access/')
-    data_dir = Parameter('data_dir', default=str(Path('/media/share/store_240a/data_downloads/noaa_daily_avg_temps')))
+    data_dir = Parameter('data_dir', default=str(Path('./local_data/noaa_temp_downloads')))
     # data_dir = Parameter('data_dir', default=str(Path('/mnt/c/Users/benha/data_downloads/noaa_global_temps')))
     dwnld_count = Parameter('dwnld_count', default=os.environ.get('PREFECT_COUNT') or 10000)
 
