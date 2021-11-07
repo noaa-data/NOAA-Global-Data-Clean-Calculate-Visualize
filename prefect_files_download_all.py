@@ -41,7 +41,7 @@ from datetime import timedelta
 @task(log_stdout=True)
 def find_highest_year(url: str, data_dir):
     year_folders = os.listdir(path=data_dir)
-    print(year_folders)
+    print(sorted(year_folders))
     if year_folders:
         return max(year_folders)
     else:
