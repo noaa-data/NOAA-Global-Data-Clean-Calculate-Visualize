@@ -153,7 +153,7 @@ executor=LocalDaskExecutor(scheduler="threads", num_workers=n_workers)
 with Flow('NOAA files: Download All', executor=executor, schedule=schedule) as flow:
     base_url = Parameter('base_url', default='https://www.ncei.noaa.gov/data/global-summary-of-the-day/access/')
     data_dir = Parameter('data_dir', default=str(Path('./local_data/noaa_temp_downloads')))
-    download_chunk_size = Parameter('download_map_lists', default=50)
+    download_chunk_size = Parameter('download_map_lists', default=100)
 
     t1_year = find_highest_year(url=base_url, data_dir=data_dir)
     t2_url  = build_url(base_url=base_url, year=t1_year)

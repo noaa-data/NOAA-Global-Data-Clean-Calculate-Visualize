@@ -134,6 +134,19 @@ def find_new_year(url: str, next_year: bool, year: int, data_dir: str):
     print('STATUS => current year not finished.')
 
 
+# def create_a_function(*args, **kwargs):
+
+#     def function_template(*args, **kwargs):
+#         func_str = ''
+#         for data_l in data_lists:
+#             func_str += """download_new_csvs(url=t2_url, year=t1_year, diff_set=t5_diff_l, data_dir=data_dir)\n"""
+#         return func_str
+
+#     return function_template
+
+# my_new_function = create_a_function()
+
+
 @flow(executor=DaskExecutor())
 def parallel_flow():
     base_url = 'https://www.ncei.noaa.gov/data/global-summary-of-the-day/access/'

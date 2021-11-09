@@ -224,8 +224,8 @@ def load_year_files(year: str, region_name: str, bucket_name: str, working_dir:s
 executor=LocalDaskExecutor(scheduler="threads", num_workers=4)
 with Flow(name="NOAA files: AWS Upload", executor=executor) as flow:
 #    working_dir = Parameter('WORKING_LOCAL_DIR', default=Path('/mnt/c/Users/benha/data_downloads/noaa_global_temps'))
-    working_dir = Parameter('WORKING_LOCAL_DIR', default=str(Path('/media/share/store_240a/data_downloads/noaa_daily_avg_temps')))
-    region_name = Parameter('REGION_NAME', default='us-east-2')
+    working_dir = Parameter('WORKING_LOCAL_DIR', default=str(Path('./local_data/noaa_temp_downloads')))
+    region_name = Parameter('REGION_NAME', default='us-east-1')
     bucket_name = Parameter('BUCKET_NAME', default='noaa-temperature-data')
     all_folders = Parameter('ALL_FOLDERS', default=True)
     t1_local_folders = local_list_folders(working_dir)
