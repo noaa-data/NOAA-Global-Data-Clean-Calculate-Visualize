@@ -1,5 +1,5 @@
 ## Intro
-- From raw data hosted by NOAA to cleaned, consolidated, and calculated data in PostgreSQL/PostGIS oh Heroku.
+- From raw data hosted by NOAA to cleaned, consolidated, and calculated data in PostgreSQL/PostGIS on Heroku.
 - Why?
     - I'm interested in the natural world, environmental sciences, and climate change.
     - My original formal education is in the liberal arts. I have a bachelor's degree in theology (with as much philosophy as I could fit in).
