@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "noaa-temp-data-calc-viz"
+version = "2022.01.23"
+description = "Series of Python tools that download 100s of 1000s of CSVs from NOAA, clean the data, load into PostGIS"
+authors = ["darrida <darrida.py@gmail.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+prefect = "^0.15.12"
+boto3 = "^1.20.41"
+tqdm = "^4.62.3"
+pandas = "^1.4.0"
+icecream = "^2.1.1"
+bs4 = "^0.0.1"
+requests = "^2.27.1"
+
+[tool.poetry.dev-dependencies]
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

@@ -27,7 +27,7 @@
 #   - The data in these new files will be inserted into a PostgreSQL database
 ##############################################################################
 
-import coiled
+# import coiled
 
 import logging
 import os
@@ -187,7 +187,9 @@ def s3_upload_file(s3_client: boto3.client, file_name, bucket, object_name=None)
 @task(log_stdout=True)
 def fetch_aws_folders(region_name, bucket_name):
     s3_client = initialize_s3_client(region_name)
+    print('s3_client initialized')
     response = s3_client.list_objects_v2(Bucket=bucket_name, Prefix='', Delimiter='/')
+    print('objects listed')
     def yield_folders(response):
         for content in response.get('CommonPrefixes', []):
             yield content.get('Prefix')
@@ -331,28 +333,28 @@ def calculate_year_csv(year_folder, finished_files, bucket_name, region_name, ca
 
 
 # IF REGISTERING FOR THE CLOUD, CREATE A LOCAL ENVIRONMENT VARIALBE FOR 'EXECTOR' BEFORE REGISTERING
-coiled_ex = True
-if coiled_ex == True:
-    print("Coiled")
-    coiled.create_software_environment(
-        name="NOAA-temperature-data-clean",
-        pip="requirements.txt"
-    )
-    executor = DaskExecutor(
-        debug=True,
-        cluster_class=coiled.Cluster,
-        cluster_kwargs={
-            "shutdown_on_close": True,
-            "name": "NOAA-temperature-data-clean",
-            "software": "darrida/noaa-temperature-data-clean",
-            "worker_cpu": 2,
-            "n_workers": 8,
-            "worker_memory":"16 GiB",
-            "scheduler_memory": "16 GiB",
-        },
-    )
-else:
-    executor=LocalDaskExecutor(scheduler="threads", num_workers=5)
+# coiled_ex = False
+# if coiled_ex == True:
+#     print("Coiled")
+#     coiled.create_software_environment(
+#         name="darrida/noaa-temperature-data-clean",
+#         pip="requirements.txt"
+#     )
+#     executor = DaskExecutor(
+#         debug=True,
+#         cluster_class=coiled.Cluster,
+#         cluster_kwargs={
+#             "shutdown_on_close": False,
+#             "name": "NOAA-temperature-data-clean",
+#             "software": "darrida/noaa-temperature-data-clean",
+#             # "worker_cpu": 2,
+#             # "n_workers": 8,
+#             # "worker_memory":"16 GiB",
+#             # "scheduler_memory": "16 GiB",
+#         },
+#     )
+# else:
+executor=LocalDaskExecutor(scheduler="threads", num_workers=10)
         
 
 with Flow(name="NOAA files: Clean and Calc", executor=executor) as flow:
