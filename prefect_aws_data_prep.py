@@ -216,8 +216,10 @@ def aws_all_year_files(year: list, bucket_name: str, region_name: str, min_old: 
         list_all_keys = page['Contents']
         # item arrives in format of 'year/filename'; this extracts that
         if time_less_than:
+            # find files modified LESS than "min_old" minutes ago (standard run to process only newer files)
             file_l = [x['Key'] for x in list_all_keys if x['LastModified'] > datetime.now(tzutc()) - timedelta(minutes=min_old)]
         else:
+            # fild files modified M)RE than "min_old" minutes ago
             file_l = [x['Key'] for x in list_all_keys if x['LastModified'] < datetime.now(tzutc()) - timedelta(minutes=min_old)]
         for f in file_l:
             aws_file_set.add(f)
@@ -299,6 +301,7 @@ def process_year_files(files_l: list, region_name: str, bucket_name: str):
 def calculate_year_csv(year_folder, finished_files, bucket_name, region_name, calc_all: bool, wait_for: str):
     print(finished_files)
     if not calc_all:
+        # prevents this task from running on ALL files. It looks for a avg file for year in question; if exists, it skips that year.
         if f'year_average/avg_{year_folder}.csv' in finished_files:
             print(year_folder)
             return
@@ -354,7 +357,7 @@ def calculate_year_csv(year_folder, finished_files, bucket_name, region_name, ca
 #         },
 #     )
 # else:
-executor=LocalDaskExecutor(scheduler="threads", num_workers=10)
+executor=LocalDaskExecutor(scheduler="threads", num_workers=16)
         
 
 with Flow(name="NOAA files: Clean and Calc", executor=executor) as flow:
@@ -362,7 +365,7 @@ with Flow(name="NOAA files: Clean and Calc", executor=executor) as flow:
     bucket_name = Parameter('BUCKET_NAME', default='noaa-temperature-data')
     map_list_size = Parameter('MAP_LIST_SIZE', default=1000)
     total_processed = Parameter('TOTAL_PROCESSED', default=50000)
-    min_old = Parameter('MINUTES_OLD', default=2880)
+    min_old = Parameter('MINUTES_OLD', default=1)#2880)
     time_less_than = Parameter('TIME_LESS_THAN', default=True)
     calc_all = Parameter('CALC_ALL_YEARS', default=False)
     t1_aws_years = fetch_aws_folders(region_name, bucket_name)

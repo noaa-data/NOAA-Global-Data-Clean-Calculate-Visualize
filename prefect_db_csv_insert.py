@@ -39,7 +39,7 @@ import traceback
 import time
 
 # PyPI
-import coiled
+# import coiled
 import prefect
 from prefect import task, Flow, Parameter
 from prefect.tasks.postgres import PostgresExecute, PostgresFetch
@@ -325,28 +325,28 @@ def insert_records(filename, db_name: str, user: str, host: str, port: str, buck
            
 
 # IF REGISTERING FOR THE CLOUD, CREATE A LOCAL ENVIRONMENT VARIALBE FOR 'EXECTOR' BEFORE REGISTERING
-coiled_ex = False
-if coiled_ex == True:
-    print("Coiled")
-    coiled.create_software_environment(
-        name="NOAA-temperature-db-insert",
-        pip="requirements.txt"
-    )
-    executor = DaskExecutor(
-        debug=True,
-        cluster_class=coiled.Cluster,
-        cluster_kwargs={
-            "shutdown_on_close": False,
-            "name": "NOAA-temperature-db-insert",
-            "software": "darrida/noaa-temperature-db-insert",
-            "worker_cpu": 2,
-            "n_workers": 3,
-            "worker_memory":"16 GiB",
-            "scheduler_memory": "16 GiB",
-        },
-    )
-else:
-    executor=LocalDaskExecutor(scheduler="threads", num_workers=8)
+# coiled_ex = False
+# if coiled_ex == True:
+#     print("Coiled")
+#     coiled.create_software_environment(
+#         name="NOAA-temperature-db-insert",
+#         pip="requirements.txt"
+#     )
+#     executor = DaskExecutor(
+#         debug=True,
+#         cluster_class=coiled.Cluster,
+#         cluster_kwargs={
+#             "shutdown_on_close": False,
+#             "name": "NOAA-temperature-db-insert",
+#             "software": "darrida/noaa-temperature-db-insert",
+#             "worker_cpu": 2,
+#             "n_workers": 3,
+#             "worker_memory":"16 GiB",
+#             "scheduler_memory": "16 GiB",
+#         },
+#     )
+# else:
+executor=LocalDaskExecutor(scheduler="threads", num_workers=8)
 
 
 with Flow(name="NOAA Temps: DB Insert Records", executor=executor) as flow:

@@ -148,8 +148,8 @@ def find_new_year(url: str, next_year: bool, year: int, data_dir: str):
 
 schedule = IntervalSchedule(interval=timedelta(seconds=10))
 
-n_workers = 7
-executor=LocalDaskExecutor(scheduler="threads", num_workers=n_workers)
+n_workers = 13
+executor=LocalDaskExecutor(scheduler="processes", num_workers=n_workers)
 with Flow('NOAA files: Download All', executor=executor, schedule=schedule) as flow:
     base_url = Parameter('base_url', default='https://www.ncei.noaa.gov/data/global-summary-of-the-day/access/')
     data_dir = Parameter('data_dir', default=str(Path('./local_data/noaa_temp_downloads')))
