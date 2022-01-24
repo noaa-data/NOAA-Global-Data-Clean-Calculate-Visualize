@@ -16,6 +16,11 @@ requests = "^2.27.1"
 psycopg2-binary = "^2.9.3"
 
 [tool.poetry.dev-dependencies]
+black = "^21.12b0"
+pytest = "^6.2.5"
+
+[tool.black]
+line-length = 120
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

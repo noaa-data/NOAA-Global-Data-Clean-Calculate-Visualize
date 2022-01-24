@@ -9,7 +9,7 @@
 #
 # - Infrastructure:
 #   - Prefect: Script is registered as a Prefect flow with api.prefect.io
-#     - Source: https://prefect.io 
+#     - Source: https://prefect.io
 #
 # DESCRIPTION
 # - Uses requests and bs4 to webscrape a NOAA web page containing temperature data (goes back to 1929)
@@ -36,24 +36,24 @@ from typing import List
 
 
 @task(log_stdout=True)
-def build_url(base_url, year=''):
-    return f'{base_url}/{year}'
+def build_url(base_url, year=""):
+    return f"{base_url}/{year}"
 
 
 @task(log_stdout=True)
 def cloud_csvs_and_timestamps(url: str) -> pd.DataFrame:
     cloud_list = []
     filename, date = None, None
-    response = requests.get(f'{url}/{year}')
-    parsed_html = BS(response.content, 'html.parser')
-    for item in parsed_html('tr'):
-        href = item('a')
-        filename = href[0].get_text() if href and '.csv' in href[0].get_text() else None
-        td = item('td', {'align': 'right'})
-        date = td[0].get_text() if td and re.match(r'\d\d\d\d-\d\d-\d\d', td[0].get_text()) else None
+    response = requests.get(f"{url}/{year}")
+    parsed_html = BS(response.content, "html.parser")
+    for item in parsed_html("tr"):
+        href = item("a")
+        filename = href[0].get_text() if href and ".csv" in href[0].get_text() else None
+        td = item("td", {"align": "right"})
+        date = td[0].get_text() if td and re.match(r"\d\d\d\d-\d\d-\d\d", td[0].get_text()) else None
         if date and filename:
-            cloud_list.append(('cloud', filename, date))
-    return pd.DataFrame(cloud_list, columns = ['type', 'filename', 'cloud_date'])
+            cloud_list.append(("cloud", filename, date))
+    return pd.DataFrame(cloud_list, columns=["type", "filename", "cloud_date"])
 
 
 @task(log_stdout=True)
@@ -63,27 +63,27 @@ def local_csvs_and_timestamps(data_dir: str, year: str) -> pd.DataFrame:
     print(dir_path)
     for file_name in os.listdir(dir_path):
         date = os.stat(os.path.join(dir_path, file_name)).st_ctime
-        local_list.append(('local', file_name, str(datetime.fromtimestamp(date))))
-    return pd.DataFrame(local_list, columns = ['type', 'filename', 'local_date'])
+        local_list.append(("local", file_name, str(datetime.fromtimestamp(date))))
+    return pd.DataFrame(local_list, columns=["type", "filename", "local_date"])
 
 
 @task(log_stdout=True)
 def find_difference(cloud_df, local_df) -> pd.DataFrame:
-    return pd.concat([local_df, cloud_df]).drop_duplicates(subset = ['filename'], keep=False)
+    return pd.concat([local_df, cloud_df]).drop_duplicates(subset=["filename"], keep=False)
 
 
 @task(log_stdout=True)
 def find_updated_files(cloud_df, local_df) -> pd.DataFrame:
-    file_df = pd.DataFrame(columns = ['type', 'filename', 'cloud_date'])
+    file_df = pd.DataFrame(columns=["type", "filename", "cloud_date"])
     file_df = file_df.append(cloud_df)
-    file_df['local_date'] = file_df['filename'].map(local_df.set_index('filename')['local_date'])
-    return file_df[(file_df['cloud_date'] > file_df['local_date'])]
+    file_df["local_date"] = file_df["filename"].map(local_df.set_index("filename")["local_date"])
+    return file_df[(file_df["cloud_date"] > file_df["local_date"])]
 
 
 @task(log_stdout=True)
 def combine_and_return_set(new_df, updated_df) -> set:
     download_df = updated_df.append(new_df)
-    return list(set(download_df['filename'].to_list()))
+    return list(set(download_df["filename"].to_list()))
 
 
 # @task(log_stdout=True)
@@ -108,25 +108,25 @@ def download_new_csvs(url: str, year: str, diff_set: set, data_dir: str, dwnld_c
     for i in tqdm(diff_set):
         if count <= dwnld_count:
             try:
-                download_url = url + '/' + i
+                download_url = url + "/" + i
                 result = requests.get(download_url)
                 file_path = Path(data_dir) / str(year) / i
-                open(file_path, 'wb').write(result.content)
+                open(file_path, "wb").write(result.content)
             except requests.exceptions.InvalidURL:
-                print('Bad url', i)
+                print("Bad url", i)
         count += 1
     if count <= dwnld_count:
         return True
 
 
-with Flow('NOAA files: Update Year') as flow:
-    year = Parameter('year', default=date.today().year)
-    base_url = Parameter('base_url', default='https://www.ncei.noaa.gov/data/global-summary-of-the-day/access/')
-    data_dir = Parameter('data_dir', default=str(Path('./local_data/noaa_temp_downloads')))
+with Flow("NOAA files: Update Year") as flow:
+    year = Parameter("year", default=date.today().year)
+    base_url = Parameter("base_url", default="https://www.ncei.noaa.gov/data/global-summary-of-the-day/access/")
+    data_dir = Parameter("data_dir", default=str(Path("./local_data/noaa_temp_downloads")))
     # data_dir = Parameter('data_dir', default=str(Path('/mnt/c/Users/benha/data_downloads/noaa_global_temps')))
-    dwnld_count = Parameter('dwnld_count', default=os.environ.get('PREFECT_COUNT') or 10000)
+    dwnld_count = Parameter("dwnld_count", default=os.environ.get("PREFECT_COUNT") or 10000)
 
-    t1_url  = build_url(base_url=base_url, year=year)
+    t1_url = build_url(base_url=base_url, year=year)
     t2_cloud = cloud_csvs_and_timestamps(url=t1_url)
     t3_local = local_csvs_and_timestamps(data_dir=data_dir, year=year)
     t4_new = find_difference(cloud_df=t2_cloud, local_df=t3_local)
@@ -137,5 +137,5 @@ with Flow('NOAA files: Update Year') as flow:
 flow.run_config = LocalRun(working_dir="/home/share/github/1-NOAA-Data-Download-Cleaning-Verification/")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     flow.run()

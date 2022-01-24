@@ -10,7 +10,7 @@
 #                             but requires fewer additional system dependencies to be installed)
 # - Infrastructure:
 #   - Prefect: Script is registered as a Prefect flow with api.prefect.io
-#     - Source: https://prefect.io 
+#     - Source: https://prefect.io
 #   - Coiled: Prefect executor calls a Dask cluster hosted on Coiled (which is on AWS)
 #     - Source: https://coiled.io
 #     - Credentials: Stored localled in default user folder created by Coiled CLI
@@ -32,6 +32,7 @@
 
 # Standard
 import sys
+
 sys.settrace
 from datetime import timedelta
 import os
@@ -60,18 +61,18 @@ from tqdm import tqdm
 # SUPPORTING FUNCTIONS #
 ########################
 def initialize_s3_client(region_name: str) -> boto3.client:
-    return boto3.client('s3', region_name=region_name)
+    return boto3.client("s3", region_name=region_name)
 
 
 def df_if_two_one(value):
-    """ Final Data Cleaning Function
+    """Final Data Cleaning Function
     - This is run against station, latitude, longitude, and elevation for indidividual records
       - Many of these records have usable data, so don't want to just throw them out.
       - Example issues:
         - Instead of a station of '000248532' a value may contain '000248532 000248532'
           - Both are equal - function returns the first one
         - Instead of a latitude of '29.583' a value may contain '29.583 29.58333333'
-          - This is from raw csv data files where they changed the number of decimal points userd 
+          - This is from raw csv data files where they changed the number of decimal points userd
             part of the way through a year.
           - Function converts both to integers, which rounds up to the nearest whole number. If both
             whole numbers are equal, then the function returns the first value from the original pair.
@@ -81,13 +82,13 @@ def df_if_two_one(value):
 
     Args:
         value (str): value to check and clean if needed
-    
+
     Returns: str
     """
     try:
-        split = value.split(' ')
+        split = value.split(" ")
         if len(split) > 1:
-            if '.' in split[0]:
+            if "." in split[0]:
                 if int(float(split[0])) == int(float(split[1])):
                     return split[0]
             elif split[0] == split[1]:
@@ -103,12 +104,7 @@ class database:
     def __init__(self, user, password, port, dbname, host):
         try:
             self.__db_connection = psycopg2.connect(
-                user=user,
-                password=password,
-                port=port,
-                database=dbname,
-                host=host,
-                sslmode='require'
+                user=user, password=password, port=port, database=dbname, host=host, sslmode="require"
             )
             self.cursor = self.__db_connection.cursor
             self.commit = self.__db_connection.commit
@@ -131,11 +127,8 @@ class database:
         try:
             self.__db_connection.close()
         except AttributeError as e:
-            if (
-                str(e)
-                != "'database' object has no attribute '_database__db_connection'"
-            ):
-                raise AttributeError(e)    
+            if str(e) != "'database' object has no attribute '_database__db_connection'":
+                raise AttributeError(e)
 
     def __exit__(self, ext_type, exc_value, traceback):
         if isinstance(exc_value, Exception) or ext_type is not None:
@@ -172,7 +165,7 @@ class database:
                 cursor.execute(sql)
             return cursor.fetchall()
         except SyntaxError as e:
-            self.rollback()   
+            self.rollback()
             traceback.print_exc()
             sys.exit()
         except InFailedSqlTransaction as e:
@@ -190,12 +183,12 @@ class database:
 def aws_all_year_files(bucket_name: str, region_name: str):
     s3_client = initialize_s3_client(region_name)
     aws_file_set = set()
-    paginator = s3_client.get_paginator('list_objects_v2')
-    pages = paginator.paginate(Bucket=bucket_name, Prefix='year_average/')
+    paginator = s3_client.get_paginator("list_objects_v2")
+    pages = paginator.paginate(Bucket=bucket_name, Prefix="year_average/")
     for page in pages:
-        list_all_keys = page['Contents']
+        list_all_keys = page["Contents"]
         # item arrives in format of 'year/filename'; this extracts that
-        file_l = [x['Key'] for x in list_all_keys]
+        file_l = [x["Key"] for x in list_all_keys]
         for f in file_l:
             aws_file_set.add(f)
         break
@@ -203,58 +196,58 @@ def aws_all_year_files(bucket_name: str, region_name: str):
 
 
 @task(log_stdout=True)
-def select_session_csvs(
-    aws_files: list, db_name: str, user: str, host: str,
-    port: str
-) -> list:
-    aws_files = [x for x in aws_files if x != '']
-    aws_files = [x for x in aws_files if x.split('/')[1]]
+def select_session_csvs(aws_files: list, db_name: str, user: str, host: str, port: str) -> list:
+    aws_files = [x for x in aws_files if x != ""]
+    aws_files = [x for x in aws_files if x.split("/")[1]]
 
     db_years = PostgresFetch(
-        db_name=db_name, user=user, host=host, port=port,
+        db_name=db_name,
+        user=user,
+        host=host,
+        port=port,
         fetch="all",
         query=f"""
         select year from climate.csv_checker
         order by date_update
-        """
-    ).run(password=PrefectSecret('HEROKU_DB_PW').run())
+        """,
+    ).run(password=PrefectSecret("HEROKU_DB_PW").run())
 
     # print(db_years)
-    db_years = [f'avg_{x[0]}.csv' for x in db_years]
+    db_years = [f"avg_{x[0]}.csv" for x in db_years]
     # print(db_years)
     # print(aws_files)
     # print([x.split('/')[1] for x in aws_files])
 
     print(len(aws_files))
     # SET DIFF, SORT
-    diff_list = [x for x in aws_files if x.split('/')[1] not in db_years]
+    diff_list = [x for x in aws_files if x.split("/")[1] not in db_years]
     print(len(diff_list))
-    return (sorted(diff_list))
+    return sorted(diff_list)
     # return ['year_average/avg_2021.csv']
 
 
 @task(log_stdout=True, max_retries=5, retry_delay=timedelta(seconds=5))
 def insert_records(filename, db_name: str, user: str, host: str, port: str, bucket_name, region_name):
     ic(filename)
-    year = filename.strip('year_average/avg_')
-    year = year.strip('.csv')
+    year = filename.strip("year_average/avg_")
+    year = year.strip(".csv")
     # Retrieve file data from AWS S3
     s3_client = initialize_s3_client(region_name)
-    obj = s3_client.get_object(Bucket=bucket_name, Key=filename) 
-    data = obj['Body']
+    obj = s3_client.get_object(Bucket=bucket_name, Key=filename)
+    data = obj["Body"]
     csv_df = pd.read_csv(data)
-    csv_df['SITE_NUMBER'] = csv_df['SITE_NUMBER'].str.strip(']')
-    csv_df['SITE_NUMBER'] = csv_df['SITE_NUMBER'].str.strip('[')
-    csv_df['LATITUDE'] = csv_df['LATITUDE'].str.strip(']')
-    csv_df['LATITUDE'] = csv_df['LATITUDE'].str.strip('[')
-    csv_df['LONGITUDE'] = csv_df['LONGITUDE'].str.strip(']')
-    csv_df['LONGITUDE'] = csv_df['LONGITUDE'].str.strip('[')
-    csv_df['ELEVATION'] = csv_df['ELEVATION'].str.strip(']')
-    csv_df['ELEVATION'] = csv_df['ELEVATION'].str.strip('[')
+    csv_df["SITE_NUMBER"] = csv_df["SITE_NUMBER"].str.strip("]")
+    csv_df["SITE_NUMBER"] = csv_df["SITE_NUMBER"].str.strip("[")
+    csv_df["LATITUDE"] = csv_df["LATITUDE"].str.strip("]")
+    csv_df["LATITUDE"] = csv_df["LATITUDE"].str.strip("[")
+    csv_df["LONGITUDE"] = csv_df["LONGITUDE"].str.strip("]")
+    csv_df["LONGITUDE"] = csv_df["LONGITUDE"].str.strip("[")
+    csv_df["ELEVATION"] = csv_df["ELEVATION"].str.strip("]")
+    csv_df["ELEVATION"] = csv_df["ELEVATION"].str.strip("[")
 
     conn_info = {
         "user": user,
-        "password": PrefectSecret('HEROKU_DB_PW').run(),
+        "password": PrefectSecret("HEROKU_DB_PW").run(),
         "host": host,
         "dbname": db_name,
         "port": port,
@@ -264,7 +257,7 @@ def insert_records(filename, db_name: str, user: str, host: str, port: str, buck
     with database(**conn_info) as conn:
         commit_count = 0
         for i in tqdm(csv_df.index):
-            vals  = [csv_df.at[i,col] for col in list(csv_df.columns)]
+            vals = [csv_df.at[i, col] for col in list(csv_df.columns)]
             station = vals[0]
             # df_if_two_one cleans a few issues left over from the data cleaning and calc steps
             station = df_if_two_one(station)
@@ -272,19 +265,33 @@ def insert_records(filename, db_name: str, user: str, host: str, port: str, buck
             latitude = df_if_two_one(latitude)
             longitude = vals[2]
             longitude = df_if_two_one(longitude)
-            if latitude not in ('nan', '') and longitude not in ('nan', ''):
+            if latitude not in ("nan", "") and longitude not in ("nan", ""):
                 try:
                     cursor = conn.cursor()
                     # val = cursor.callproc('ST_GeomFromText', ((f'POINT({longitude} {latitude})'), 4326))
-                    cursor.callproc('ST_GeomFromText', ((f'POINT({longitude} {latitude})'), 4326))
+                    cursor.callproc("ST_GeomFromText", ((f"POINT({longitude} {latitude})"), 4326))
                     geom = cursor.fetchone()[0]
-                    insert_str="""
+                    insert_str = """
                         insert into climate.noaa_year_averages 
                             (year, station, latitude, longitude, elevation, temp, dewp, stp, max, min, prcp, geom)
                         values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """
-                    conn.execute_insert(insert_str, (
-                        year, vals[0], vals[1], vals[2], vals[3], vals[4], vals[5], vals[6], vals[7], vals[8], vals[9], geom,)
+                    conn.execute_insert(
+                        insert_str,
+                        (
+                            year,
+                            vals[0],
+                            vals[1],
+                            vals[2],
+                            vals[3],
+                            vals[4],
+                            vals[5],
+                            vals[6],
+                            vals[7],
+                            vals[8],
+                            vals[9],
+                            geom,
+                        ),
                     )
                     commit_count += 1
                 except UniqueViolation as e:
@@ -294,7 +301,7 @@ def insert_records(filename, db_name: str, user: str, host: str, port: str, buck
                     # Record exists, so transaction with "geom" is removed
                     pass
                 except Exception as e:
-                    if 'parse error - invalid geometry' in str(e):
+                    if "parse error - invalid geometry" in str(e):
                         # Error in spatial data
                         ic(latitude, longitude)
                     print(e)
@@ -304,17 +311,15 @@ def insert_records(filename, db_name: str, user: str, host: str, port: str, buck
                     conn.commit()
                     commit_count = 0
     try:
-        PostgresExecute(
-            db_name=db_name, user=user, host=host, port=port,  
-        ).run(
+        PostgresExecute(db_name=db_name, user=user, host=host, port=port,).run(
             query="""
             insert into climate.csv_checker 
                 (year, date_create, date_update)
             values (%s, CURRENT_DATE, CURRENT_DATE)
-            """, 
+            """,
             data=(year,),
             commit=True,
-            password=PrefectSecret('HEROKU_DB_PW').run()
+            password=PrefectSecret("HEROKU_DB_PW").run(),
         )
     except UniqueViolation:
         pass
@@ -322,7 +327,7 @@ def insert_records(filename, db_name: str, user: str, host: str, port: str, buck
         ic(vals[0], year)
         ic(e)
     return
-           
+
 
 # IF REGISTERING FOR THE CLOUD, CREATE A LOCAL ENVIRONMENT VARIALBE FOR 'EXECTOR' BEFORE REGISTERING
 # coiled_ex = False
@@ -346,20 +351,26 @@ def insert_records(filename, db_name: str, user: str, host: str, port: str, buck
 #         },
 #     )
 # else:
-executor=LocalDaskExecutor(scheduler="threads", num_workers=8)
+executor = LocalDaskExecutor(scheduler="threads", num_workers=8)
 
 
 with Flow(name="NOAA Temps: DB Insert Records", executor=executor) as flow:
-    region_name = Parameter('REGION_NAME', default='us-east-1')
-    bucket_name = Parameter('BUCKET_NAME', default='noaa-temperature-data')
-    db_name = Parameter('DB_NAME', default='d5kg55pc96p21p')
-    user = Parameter('USER', default='ziuixeipnmbrjm')
-    host = Parameter('HOST', default='ec2-3-231-241-17.compute-1.amazonaws.com')
-    port = Parameter('PORT', default='5432')
+    region_name = Parameter("REGION_NAME", default="us-east-1")
+    bucket_name = Parameter("BUCKET_NAME", default="noaa-temperature-data")
+    db_name = Parameter("DB_NAME", default="d5kg55pc96p21p")
+    user = Parameter("USER", default="ziuixeipnmbrjm")
+    host = Parameter("HOST", default="ec2-3-231-241-17.compute-1.amazonaws.com")
+    port = Parameter("PORT", default="5432")
     t1_aws_files = aws_all_year_files(bucket_name, region_name)
     t2_csv_list = select_session_csvs(t1_aws_files, db_name, user, host, port)
-    t4_task = insert_records.map(t2_csv_list, 
-        unmapped(db_name), unmapped(user), unmapped(host), unmapped(port), unmapped(bucket_name), unmapped(region_name)
+    t4_task = insert_records.map(
+        t2_csv_list,
+        unmapped(db_name),
+        unmapped(user),
+        unmapped(host),
+        unmapped(port),
+        unmapped(bucket_name),
+        unmapped(region_name),
     )
 
 
@@ -367,5 +378,5 @@ flow.run_config = LocalRun(
     working_dir="/home/share/github/1-NOAA-Data-Download-Cleaning-Verification",
 )
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     state = flow.run()
