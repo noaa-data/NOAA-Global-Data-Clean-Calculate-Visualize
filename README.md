@@ -1,3 +1,5 @@
+NOTE: Original working state before current in-progress modification: https://github.com/darrida/NOAA-Global-Data-Clean-Calculate-Visualize/tree/083c7a8ebf5ad446e0b99951b761b0fc708d7925
+
 # NOAA-Spatial-Data-Processing
 - Project features:
   - Cloud data management via AWS
