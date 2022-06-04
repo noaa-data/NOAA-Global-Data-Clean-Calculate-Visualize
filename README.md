@@ -1,4 +1,10 @@
-NOTE: Original working state before current in-progress modification: https://github.com/darrida/NOAA-Global-Data-Clean-Calculate-Visualize/tree/083c7a8ebf5ad446e0b99951b761b0fc708d7925
+**NOTE:** Updated 2022.06.03 - Original working state before current in-progress modification: https://github.com/darrida/NOAA-Global-Data-Clean-Calculate-Visualize/tree/083c7a8ebf5ad446e0b99951b761b0fc708d7925
+- Functionality is currently being split out into the following repositories:
+  - Data download: https://github.com/darrida/NOAA-file-download
+  - Data prep/verification: https://github.com/darrida/NOAA-file-download
+  - Data s3 upload: https://github.com/darrida/NOAA-temperature-s3-upload
+  - Data Postgres insert: [TBD]
+  - Data visualization: [TBD]
 
 # NOAA-Spatial-Data-Processing
 - Project features:
